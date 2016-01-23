@@ -11,12 +11,11 @@ class Request {
 public:
 	Request(short api_key, int correlation_id, std::string client_id = "client_oyld");
 
-	// exclude itself
-	int   total_size_;
+	
+	int   total_size_;		// exclude itself;
 	short api_key_;
-	short api_version_;
+	short api_version_;		// always 0
 	int   correlation_id_;
-	short client_id_size_;
 	std::string client_id_;
 };
 
@@ -26,7 +25,6 @@ class GroupCoordinatorRequest: public Request {
 public:
 	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
 
-	short group_id_size_;
 	std::string group_id_;
 };
 
@@ -37,20 +35,16 @@ public:
 	ProtocolMetadata(const std::vector<std::string> &topics);
 
 	short version_;
-	int topics_size_;
-	std::vector<std::pair<short, std::string>> topics_;
-	int user_data_size_;
-	char *user_data_;
+	std::vector<std::string> subscription_;
+	std::vector<char> user_data_;
 };
 
 
-class GroupProtocols {
+class GroupProtocol {
 public:
-	GroupProtocols(const std::vector<std::string> &topics);
+	GroupProtocol(const std::vector<std::string> &topics);
 
-	// ProtocolName
-	short assignment_strategy_size_;
-	std::string assignment_strategy_;
+	std::string assignment_strategy_;	// ProtocolName = range
 	ProtocolMetadata protocol_metadata_;
 };
 
@@ -61,15 +55,11 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
-	short group_id_size_;
 	std::string group_id_;
 	int session_timeout_;
-	short member_id_size_;
 	std::string member_id_;
-	short protocol_type_size_;
 	std::string protocol_type_;		// "consumer"
-	int group_protocol_size_;
-	GroupProtocols group_protocol_;
+	std::vector<GroupProtocol> group_protocols_;
 };
 
 #endif

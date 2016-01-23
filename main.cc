@@ -8,6 +8,7 @@
 #include "common.h"
 #include "request.h"
 #include "response.h"
+#include "util.h"
 
 enum class State {
 	down,
@@ -18,30 +19,6 @@ enum class State {
 State state = State::down;
 
 std::vector<int> fds;
-
-int net_bytes_to_int(char *buf)
-{
-	int a = buf[0] & 0xFF;
-	a |= ((buf[1] << 8) & 0xFF00);
-	a |= ((buf[2] << 16) & 0xFF0000);
-	a |= ((buf[3] << 24) & 0xFF000000);
-	return ntohl(a);
-}
-
-
-short net_bytes_to_short(char *buf)
-{
-	int a = buf[0] & 0xFF;
-	a |= ((buf[1] << 8) & 0xFF00);
-	return ntohs(a);
-}
-
-
-bool validate_correlation_id()
-{
-
-}
-
 
 int send_request(int fd, Request &request)
 {
@@ -69,21 +46,21 @@ int send_request(int fd, Request &request)
 	p += 4;
 
 	// client id
-	short client_id_size = htons(request.client_id_size_);
+	short client_id_size = htons((short)request.client_id_.length());
 	memcpy(p, &client_id_size, 2);
 	p += 2;
-	memcpy(p, request.client_id_.c_str(), request.client_id_size_);
-	p += request.client_id_size_;
+	memcpy(p, request.client_id_.c_str(), request.client_id_.length());
+	p += request.client_id_.length();
 
 	switch(request.api_key_)
 	{
 		case 10:
 		{
 			GroupCoordinatorRequest &r = static_cast<GroupCoordinatorRequest&>(request);
-			short group_id_size = htons(r.group_id_size_);
+			short group_id_size = htons((short)r.group_id_.length());
 			memcpy(p, &group_id_size, 2);
 			p += 2;
-			memcpy(p, r.group_id_.c_str(), r.group_id_size_);
+			memcpy(p, r.group_id_.c_str(), r.group_id_.length());
 			break;
 		}
 
@@ -92,11 +69,11 @@ int send_request(int fd, Request &request)
 			JoinGroupRequest &r = static_cast<JoinGroupRequest&>(request);
 
 			// group id
-			short group_id_size = htons(r.group_id_size_);
+			short group_id_size = htons((short)r.group_id_.length());
 			memcpy(p, &group_id_size, 2);
 			p += 2;
-			memcpy(p, r.group_id_.c_str(), r.group_id_size_);
-			p += r.group_id_size_;
+			memcpy(p, r.group_id_.c_str(), r.group_id_.length());
+			p += r.group_id_.length();
 
 			// session timeout
 			int session_timeout = htonl(r.session_timeout_);
@@ -104,57 +81,61 @@ int send_request(int fd, Request &request)
 			p += 4;
 
 			// member id
-			short member_id_size = htons(r.member_id_size_);
+			short member_id_size = htons((short)r.member_id_.length());
 			memcpy(p, &member_id_size, 2);
 			p += 2;
-			memcpy(p, r.member_id_.c_str(), r.member_id_size_);
-			p += r.member_id_size_;
+			memcpy(p, r.member_id_.c_str(), r.member_id_.length());
+			p += r.member_id_.length();
 
 			// protocol type
-			short protocol_type_size = htons(r.protocol_type_size_);
+			short protocol_type_size = htons((short)r.protocol_type_.length());
 			memcpy(p, &protocol_type_size, 2);
 			p += 2;
-			memcpy(p, r.protocol_type_.c_str(), r.protocol_type_size_);
-			p += r.protocol_type_size_;
+			memcpy(p, r.protocol_type_.c_str(), r.protocol_type_.length());
+			p += r.protocol_type_.length();
 
 			// array size
-			int group_protocol_size = htonl(r.group_protocol_size_);
+			int group_protocol_size = htonl(r.group_protocols_.size());
 			memcpy(p, &group_protocol_size, 4);
 			p += 4;
 
-			// assignment strategy
-			short assignment_strategy_size = htons(r.group_protocol_.assignment_strategy_size_);
-			memcpy(p, &assignment_strategy_size, 2);
-			p += 2;
-			memcpy(p, r.group_protocol_.assignment_strategy_.c_str(), r.group_protocol_.assignment_strategy_size_);
-			p += r.group_protocol_.assignment_strategy_size_;
-
-			// version
-			short version = htons(r.group_protocol_.protocol_metadata_.version_);
-			memcpy(p, &version, 2);
-			p += 2;
-
-			// topic
-			int topic_size = htonl(r.group_protocol_.protocol_metadata_.topics_size_);
-			memcpy(p, &topic_size, 4);
-			p += 4;
-
-			for (int i = 0; i < r.group_protocol_.protocol_metadata_.topics_.size(); i++)
+			for (int i = 0; i < r.group_protocols_.size(); i++)
 			{
-				std::pair<short, std::string> size_and_topic = r.group_protocol_.protocol_metadata_.topics_[i];
-				short size = htons(size_and_topic.first);
-				memcpy(p, &size, 2);
+				// assignment strategy
+				GroupProtocol &gp = r.group_protocols_[i];
+				short assignment_strategy_size = htons((short)gp.assignment_strategy_.length());
+				memcpy(p, &assignment_strategy_size, 2);
 				p += 2;
-				memcpy(p, size_and_topic.second.c_str(), size_and_topic.first);
-				p += size_and_topic.first;
-			}
+				memcpy(p, gp.assignment_strategy_.c_str(), gp.assignment_strategy_.length());
+				p += gp.assignment_strategy_.length();
 
-			// consumer id
-			int user_data_size = htonl(r.group_protocol_.protocol_metadata_.user_data_size_);
-			memcpy(p, &user_data_size, 4);
-			p += 4;
-			memcpy(p, r.group_protocol_.protocol_metadata_.user_data_,
-				   r.group_protocol_.protocol_metadata_.user_data_size_);
+				// version
+				short version = htons(gp.protocol_metadata_.version_);
+				memcpy(p, &version, 2);
+				p += 2;
+
+				// topics
+				int topics_size = htonl(gp.protocol_metadata_.subscription_.size());
+				memcpy(p, &topics_size, 4);
+				p += 4;
+
+				for (int j = 0; j < gp.protocol_metadata_.subscription_.size(); j++)
+				{
+					std::string topic = gp.protocol_metadata_.subscription_[j];
+					short topic_size = htons((short)topic.length());
+					memcpy(p, &topic_size, 2);
+					p += 2;
+					memcpy(p, topic.c_str(), topic.length());
+					p += topic.length();
+				}
+
+				// consumer id
+				int user_data_size = htonl(gp.protocol_metadata_.user_data_.size());
+				memcpy(p, &user_data_size, 4);
+				p += 4;
+				memcpy(p, gp.protocol_metadata_.user_data_.data(),
+					   gp.protocol_metadata_.user_data_.size());
+			}
 
 			break;
 		}
@@ -178,24 +159,26 @@ int receive_response(int fd)
 	}
 
 	char *p = buf;
-	int response_size = net_bytes_to_int(p);
+	int response_size = Util::net_bytes_to_int(p);
+	std::cout << "response size = " << response_size << std::endl;
 	p += 4;
-	int correlation_id = net_bytes_to_int(p); 
+	int correlation_id = Util::net_bytes_to_int(p); 
+	std::cout << "correlation id = " << correlation_id << std::endl;
 	p += 4;
 
 	switch(correlation_id)
 	{
 		case 0:
 		{
-			short error_code = net_bytes_to_short(p);
+			short error_code = Util::net_bytes_to_short(p);
 			p += 2;
-			int coordinator_id = net_bytes_to_int(p); 
+			int coordinator_id = Util::net_bytes_to_int(p); 
 			p += 4;
-			short host_size = net_bytes_to_short(p);
+			short host_size = Util::net_bytes_to_short(p);
 			p += 2;
 			std::string coordinator_host(p, host_size);
 			p += host_size;
-			int coordinator_port = net_bytes_to_int(p); 
+			int coordinator_port = Util::net_bytes_to_int(p); 
 
 			GroupCoordinatorResponse response(correlation_id, error_code, coordinator_id,
 					coordinator_host, coordinator_port);
