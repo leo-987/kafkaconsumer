@@ -4,13 +4,18 @@
 #include <map>
 #include <deque>
 
+#include "network.h"
+#include "request.h"
+
 
 class KafkaClient {
 public:
+	KafkaClient();
+	~KafkaClient();
 
+	std::map<int, std::deque<Request *>> in_flight_requests_;
+	Network *network_;
 
-
-	std::map<std::string, deque<Request>> in_flight_requests_;
 };
 
 #endif

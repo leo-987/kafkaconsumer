@@ -5,19 +5,21 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <strings.h>
 #include <cstdlib>
 #include <cstdio>
 #include <cstddef>
 #include <string>
 
-namespace common{
+namespace common {
 
-#define D(exp,fmt,...) do {                 \
-	if(!(exp)){                             \
-		fprintf(stderr,fmt,##__VA_ARGS__);  \
-		abort();                            \
-	}                                       \
+#define D(exp, fmt, ...) do {                 \
+	if(!(exp)){                               \
+		fprintf(stderr, fmt, ##__VA_ARGS__);  \
+		abort();                              \
+	}                                         \
 }while(0)
 
 static void setnonblock(int fd)
@@ -52,7 +54,7 @@ static std::string address_to_string(struct sockaddr_in* addr)
 
 static int new_tcp_server(int port)
 {
-    int fd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+    int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     D(fd > 0,"socket failed(%m)\n");
     setnonblock(fd);
     setreuseaddr(fd);
