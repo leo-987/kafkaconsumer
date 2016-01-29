@@ -2,27 +2,43 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <deque>
 
+#include "kafka_client.h"
 #include "network.h"
 #include "util.h"
 #include "response.h"
 #include "common.h"
 
-static int ReceiveResponse(int fd);
-static int SendRequest(int fd, Request &request);
+
+static int ReceiveResponse(int fd, KafkaClient *client);
+static int SendRequest(int fd, KafkaClient *client, Request *request);
 
 static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revents)
 {
 	ev_break(loop, EVBREAK_ALL);
 }
 
-static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
+static int GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int correlation_id)
+{
+	if (in_flight_requests.empty())
+		return -1;
+
+	Request *in_flight_request = in_flight_requests.front();
+	if (in_flight_request->correlation_id_ != correlation_id)
+		return -1;
+
+	return in_flight_request->api_key_;
+}
+
+static void ReadReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 {
 	KafkaClient *client = (KafkaClient *)ev_userdata(loop);
 
 	if (events & EV_READ)
 	{
-		int ret = ReceiveResponse(w->fd);
+		std::cout << "read ready" << std::endl;
+		int ret = ReceiveResponse(w->fd, client);
 		if (ret <= 0)
 		{
 			if (ret == 0)
@@ -37,11 +53,18 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 			}
 		}
 	}
+}
+
+static void WriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
+{
+	KafkaClient *client = (KafkaClient *)ev_userdata(loop);
+
 	if (events & EV_WRITE)
 	{
-		GroupCoordinatorRequest request_1(0, "test");
-		SendRequest(w->fd, request_1);
-		
+		// Get request from kafka client
+		Request *request = client->send_queue_.pop();
+		SendRequest(w->fd, client, request);
+
 		//std::vector<std::string> topic({"test"});
 		//JoinGroupRequest request_2(1, "test", "", topic);
 		//send_request(w->fd, request_2);
@@ -52,14 +75,14 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 	}
 }
 
-static int ReceiveResponse(int fd)
+static int ReceiveResponse(int fd, KafkaClient *client)
 {
 	char buf[1024] = {0};
-	int n = read(fd, buf, 1024);
-	std::cout << "n = " << n << std::endl;
-	if (n <= 0)
+	int nread = read(fd, buf, 1024);
+	std::cout << "nread = " << nread << std::endl;
+	if (nread <= 0)
 	{
-		return n;
+		return nread;
 	}
 
 	char *p = buf;
@@ -70,9 +93,21 @@ static int ReceiveResponse(int fd)
 	std::cout << "correlation id = " << correlation_id << std::endl;
 	p += 4;
 
-	switch(correlation_id)
+	std::deque<Request *> in_flight_requests = client->in_flight_requests_.at(fd);
+	int api_key = GetApiKeyFromResponse(in_flight_requests, correlation_id);
+
+	if (api_key < 0)
 	{
-		case 0:
+		// not match
+		return -1;
+	}
+
+	// pop
+	in_flight_requests.pop_front();
+
+	switch(api_key)
+	{
+		case 10:
 		{
 			short error_code = Util::net_bytes_to_short(p);
 			p += 2;
@@ -85,106 +120,110 @@ static int ReceiveResponse(int fd)
 			int coordinator_port = Util::net_bytes_to_int(p); 
 
 			GroupCoordinatorResponse response(correlation_id, error_code, coordinator_id,
-					coordinator_host, coordinator_port);
+											  coordinator_host, coordinator_port);
 
 			std::cout << "correlation id = " << response.correlation_id_ << std::endl;
 			std::cout << "error code = " << response.error_code_ << std::endl;
 			std::cout << "coordinator id = " << response.coordinator_id_ << std::endl;
 			std::cout << "coordinator host = " << response.coordinator_host_ << std::endl;
 			std::cout << "coordinator port = " << response.coordinator_port_ << std::endl;
-				
+
 			std::cout << response.total_size_ << std::endl;
 
 			break;
 		}
+		case 11:
+		{
+			break;
+		}
 	}
 
-	return n;
+	return nread;
 }
 
-static int SendRequest(int fd, Request &request)
+static int SendRequest(int fd, KafkaClient *client, Request *request)
 {
-	char *packet = new char[request.total_size_ + 4];
+	char *packet = new char[request->total_size_ + 4];
 	char *p = packet;
 
 	// total size
-	int request_size = htonl(request.total_size_);
+	int request_size = htonl(request->total_size_);
 	memcpy(p, &request_size, 4);
 	p += 4;
 
 	// api key
-	short api_key = htons(request.api_key_);
+	short api_key = htons(request->api_key_);
 	memcpy(p, &api_key, 2);
 	p += 2;
 
 	// api version
-	short api_version = htons(request.api_version_);
+	short api_version = htons(request->api_version_);
 	memcpy(p, &api_version, 2);
 	p += 2;
 
 	// correlation id
-	int correlation_id = htonl(request.correlation_id_);
+	int correlation_id = htonl(request->correlation_id_);
 	memcpy(p, &correlation_id, 4);
 	p += 4;
 
 	// client id
-	short client_id_size = htons((short)request.client_id_.length());
+	short client_id_size = htons((short)request->client_id_.length());
 	memcpy(p, &client_id_size, 2);
 	p += 2;
-	memcpy(p, request.client_id_.c_str(), request.client_id_.length());
-	p += request.client_id_.length();
+	memcpy(p, request->client_id_.c_str(), request->client_id_.length());
+	p += request->client_id_.length();
 
-	switch(request.api_key_)
+	switch(request->api_key_)
 	{
 		case 10:
 		{
-			GroupCoordinatorRequest &r = dynamic_cast<GroupCoordinatorRequest&>(request);
-			short group_id_size = htons((short)r.group_id_.length());
+			GroupCoordinatorRequest *r = dynamic_cast<GroupCoordinatorRequest*>(request);
+			short group_id_size = htons((short)r->group_id_.length());
 			memcpy(p, &group_id_size, 2);
 			p += 2;
-			memcpy(p, r.group_id_.c_str(), r.group_id_.length());
+			memcpy(p, r->group_id_.c_str(), r->group_id_.length());
 			break;
 		}
 
 		case 11:
 		{
-			JoinGroupRequest &r = dynamic_cast<JoinGroupRequest&>(request);
+			JoinGroupRequest *r = dynamic_cast<JoinGroupRequest*>(request);
 
 			// group id
-			short group_id_size = htons((short)r.group_id_.length());
+			short group_id_size = htons((short)r->group_id_.length());
 			memcpy(p, &group_id_size, 2);
 			p += 2;
-			memcpy(p, r.group_id_.c_str(), r.group_id_.length());
-			p += r.group_id_.length();
+			memcpy(p, r->group_id_.c_str(), r->group_id_.length());
+			p += r->group_id_.length();
 
 			// session timeout
-			int session_timeout = htonl(r.session_timeout_);
+			int session_timeout = htonl(r->session_timeout_);
 			memcpy(p, &session_timeout, 4);
 			p += 4;
 
 			// member id
-			short member_id_size = htons((short)r.member_id_.length());
+			short member_id_size = htons((short)r->member_id_.length());
 			memcpy(p, &member_id_size, 2);
 			p += 2;
-			memcpy(p, r.member_id_.c_str(), r.member_id_.length());
-			p += r.member_id_.length();
+			memcpy(p, r->member_id_.c_str(), r->member_id_.length());
+			p += r->member_id_.length();
 
 			// protocol type
-			short protocol_type_size = htons((short)r.protocol_type_.length());
+			short protocol_type_size = htons((short)r->protocol_type_.length());
 			memcpy(p, &protocol_type_size, 2);
 			p += 2;
-			memcpy(p, r.protocol_type_.c_str(), r.protocol_type_.length());
-			p += r.protocol_type_.length();
+			memcpy(p, r->protocol_type_.c_str(), r->protocol_type_.length());
+			p += r->protocol_type_.length();
 
 			// array size
-			int group_protocol_size = htonl(r.group_protocols_.size());
+			int group_protocol_size = htonl(r->group_protocols_.size());
 			memcpy(p, &group_protocol_size, 4);
 			p += 4;
 
-			for (int i = 0; i < r.group_protocols_.size(); i++)
+			for (int i = 0; i < r->group_protocols_.size(); i++)
 			{
 				// assignment strategy
-				GroupProtocol &gp = r.group_protocols_[i];
+				GroupProtocol &gp = r->group_protocols_[i];
 				short assignment_strategy_size = htons((short)gp.assignment_strategy_.length());
 				memcpy(p, &assignment_strategy_size, 2);
 				p += 2;
@@ -223,8 +262,11 @@ static int SendRequest(int fd, Request &request)
 		}
 	}
 
-	int n = write(fd, packet, request.total_size_ + 4);
-	std::cout << n << std::endl;
+	int n = write(fd, packet, request->total_size_ + 4);
+	std::cout << "Send " << n << " bytes" << std::endl;
+
+	// push request to in flight request queue
+	client->in_flight_requests_[fd].push_back(request);
 
 	return 0;
 }
@@ -236,8 +278,10 @@ static void* EventLoopThread(void *arg)
 	return NULL;
 }
 
+//-----------------------------------Network
 Network::Network()
 {
+	loop_ = NULL;
 }
 
 Network::~Network()
@@ -260,17 +304,20 @@ int Network::Init(KafkaClient *client)
 	fds_.push_back(fd_b2);
 	fds_.push_back(fd_b3);
 
-	watchers_.reserve(3);
+	watchers_.reserve(6);
 
 	for (int i = 0; i < 3; i++)
-    	ev_io_init(&watchers_[i], ReadWriteReadyCallback, fds_[i], EV_READ | EV_WRITE);
+	{
+    	ev_io_init(&watchers_[i * 2], ReadReadyCallback, fds_[i], EV_READ);
+    	ev_io_init(&watchers_[i * 2 + 1], WriteReadyCallback, fds_[i], EV_WRITE);
+	}
 
 	// associate KafkaClient with the loop
 	ev_set_userdata(loop_, client);
 
 	ev_async_init(&async_watcher_, EventLoopAsyncCallback);
 
-	std::cout << "Network init finish" << std::endl;
+	std::cout << "Network init OK!" << std::endl;
 }
 
 int Network::Start()

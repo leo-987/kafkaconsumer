@@ -12,7 +12,7 @@ public:
 	Request(short api_key, int correlation_id, std::string client_id = "client_oyld");
 	virtual ~Request() {}
 	
-	int   total_size_;		// exclude itself;
+	int   total_size_;		// exclude itself
 	short api_key_;
 	short api_version_;		// always 0
 	int   correlation_id_;

@@ -11,6 +11,8 @@ enum class State {
 int main()
 {
 	KafkaClient client;
+	client.Init();
+	client.Start();
 
     return 0;
 }

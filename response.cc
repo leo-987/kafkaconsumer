@@ -6,18 +6,21 @@
 Response::Response(int correlation_id)
 	: total_size_(0), correlation_id_(correlation_id) 
 {
-
+	total_size_ = 0;
+	correlation_id_ = correlation_id;
 }
 
 
 //------------------------------GroupCoordinatorResponse
 GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short error_code,
 		int coordinator_id, const std::string &coordinator_host, int coordinator_port)
-	: Response(correlation_id), error_code_(error_code), coordinator_id_(coordinator_id), 
-	  coordinator_host_size_(coordinator_host.length()), coordinator_host_(coordinator_host),
-	  coordinator_port_(coordinator_port)
+	: Response(correlation_id)
 {
-	total_size_ = 4 + 2 + 4 + 2 + coordinator_host_size_ + 4;
+	error_code_ = error_code;
+	coordinator_id_ = coordinator_id;
+	coordinator_host_ = coordinator_host;
+	coordinator_port_ = coordinator_port;
+	total_size_ = 4 + 2 + 4 + 2 + coordinator_host_.length() + 4;
 }
 
 

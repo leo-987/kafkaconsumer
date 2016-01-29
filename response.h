@@ -8,7 +8,7 @@ class Response {
 public:
 	Response(int correlation_id);
 
-	int total_size_;
+	int total_size_;		// exclude itself
 	int correlation_id_;
 };
 
@@ -21,7 +21,6 @@ public:
 
 	short error_code_;
 	int coordinator_id_;
-	short coordinator_host_size_;
 	std::string coordinator_host_;
 	int coordinator_port_;
 };
