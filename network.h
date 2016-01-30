@@ -16,13 +16,14 @@ public:
 	int Start();
 	int Stop();
 
-	pthread_t tid_;
+	KafkaClient *client_;
 
-	struct ev_loop *loop_;
-	std::vector<ev_io> watchers_;
+	std::vector<pthread_t> tids_;
+
+	std::vector<struct ev_loop *> loops_;
 	std::vector<int> fds_;
-
-	ev_async async_watcher_;
+	std::vector<ev_io> watchers_;
+	std::vector<ev_async> async_watchers_;
 };
 
 #endif

@@ -31,13 +31,16 @@ static int GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int 
 	return in_flight_request->api_key_;
 }
 
-static void ReadReadyCallback(struct ev_loop *loop, ev_io *w, int events)
+static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 {
 	KafkaClient *client = (KafkaClient *)ev_userdata(loop);
 
+	//std::cout << "aaaaaaaaaa" << std::endl;
+	//sleep(1);
+#if 1
 	if (events & EV_READ)
 	{
-		std::cout << "read ready" << std::endl;
+		//std::cout << "read ready" << std::endl;
 		int ret = ReceiveResponse(w->fd, client);
 		if (ret <= 0)
 		{
@@ -53,26 +56,22 @@ static void ReadReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 			}
 		}
 	}
-}
-
-static void WriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
-{
-	KafkaClient *client = (KafkaClient *)ev_userdata(loop);
-
 	if (events & EV_WRITE)
 	{
 		// Get request from kafka client
-		Request *request = client->send_queue_.pop();
-		SendRequest(w->fd, client, request);
+		Request *request = client->send_queue_.Pop();
+		if (request != NULL)
+			SendRequest(w->fd, client, request);
 
 		//std::vector<std::string> topic({"test"});
 		//JoinGroupRequest request_2(1, "test", "", topic);
 		//send_request(w->fd, request_2);
 
-		ev_io_stop(loop, w);
-		ev_io_set(w, w->fd, EV_READ);
-		ev_io_start(loop, w);
+		//ev_io_stop(loop, w);
+		//ev_io_set(w, w->fd, EV_READ);
+		//ev_io_start(loop, w);
 	}
+#endif
 }
 
 static int ReceiveResponse(int fd, KafkaClient *client)
@@ -273,28 +272,31 @@ static int SendRequest(int fd, KafkaClient *client, Request *request)
 
 static void* EventLoopThread(void *arg)
 {
-	struct ev_loop *loop_ = (struct ev_loop *)arg;
-    ev_run(loop_, 0);
+	struct ev_loop *loop = (struct ev_loop *)arg;
+    ev_run(loop, 0);
 	return NULL;
 }
 
 //-----------------------------------Network
 Network::Network()
 {
-	loop_ = NULL;
+	//loop_ = NULL;
 }
 
 Network::~Network()
 {
 	for (int i = 0; i < fds_.size(); i++)
+	{
 	    close(fds_[i]);
-
-    ev_loop_destroy(loop_);
+    	ev_loop_destroy(loops_[i]);
+	}
 }
 
 int Network::Init(KafkaClient *client)
 {
-	loop_ = EV_DEFAULT;
+	client_ = client;
+
+	//loop_ = EV_DEFAULT;
 
 	int fd_b1 = common::new_tcp_client("10.123.81.11", 9092);
 	int fd_b2 = common::new_tcp_client("10.123.81.12", 9092);
@@ -304,44 +306,64 @@ int Network::Init(KafkaClient *client)
 	fds_.push_back(fd_b2);
 	fds_.push_back(fd_b3);
 
-	watchers_.reserve(6);
+	loops_.resize(fds_.size());
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < loops_.size(); i++)
 	{
-    	ev_io_init(&watchers_[i * 2], ReadReadyCallback, fds_[i], EV_READ);
-    	ev_io_init(&watchers_[i * 2 + 1], WriteReadyCallback, fds_[i], EV_WRITE);
+		loops_[i] = ev_loop_new(EVFLAG_AUTO);
+
+		// associate KafkaClient with the loop
+		ev_set_userdata(loops_[i], client);
 	}
 
-	// associate KafkaClient with the loop
-	ev_set_userdata(loop_, client);
+	//watchers_.resize(3);
 
-	ev_async_init(&async_watcher_, EventLoopAsyncCallback);
+	for (int i = 0; i < fds_.size(); i++)
+	{
+		// io watcher
+		ev_io watcher;
+    	ev_io_init(&watcher, ReadWriteReadyCallback, fds_[i], EV_READ | EV_WRITE);
+		watchers_.push_back(watcher);
+	
+		// async wathcer
+		ev_async async_watcher;
+		ev_async_init(&async_watcher, EventLoopAsyncCallback);
+		async_watchers_.push_back(async_watcher);
+	}
 
 	std::cout << "Network init OK!" << std::endl;
 }
 
 int Network::Start()
 {
-	for (int i = 0; i < 3; i++)
-		ev_io_start(loop_, &watchers_[i]);
+	for (int i = 0; i < loops_.size(); i++)
+	{
+		// start watchers
+		ev_io_start(loops_[i], &watchers_[i]);
+		ev_async_start(loops_[i], &async_watchers_[i]);
 
-	ev_async_start(loop_, &async_watcher_);
+		// one loop per thread
+		pthread_t tid;
+		pthread_create(&tid, NULL, EventLoopThread, loops_[i]);
+		tids_.push_back(tid);
+	}
 
-	pthread_create(&tid_, NULL, EventLoopThread, loop_);
-
-	std::cout << "Net thread created" << std::endl;
+	std::cout << "Net thread created!" << std::endl;
 }
 
 int Network::Stop()
 {
-	for (int i = 0; i < watchers_.size(); i++)
-		ev_io_stop(loop_, &watchers_[i]);
+	for (int i = 0; i < loops_.size(); i++)
+	{
+		ev_io_stop(loops_[i], &watchers_[i]);
 
-	if (ev_async_pending(&async_watcher_) == false)
-		ev_async_send(loop_, &async_watcher_);
+		if (ev_async_pending(&async_watchers_[i]) == false)
+			ev_async_send(loops_[i], &async_watchers_[i]);
+	
+		pthread_join(tids_[i], NULL);
+	}
 
-	pthread_join(tid_, NULL);
-	std::cout << "Network thread exit" << std::endl;
+	std::cout << "Network thread exit!" << std::endl;
 
 	return 0;
 }

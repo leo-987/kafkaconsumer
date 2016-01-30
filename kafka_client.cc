@@ -24,8 +24,8 @@ int KafkaClient::Start()
 {
 	network_->Start();
 	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
-	send_queue_.push(group_request);
-	sleep(2);
+	send_queue_.Push(group_request);
+	sleep(3);
 	network_->Stop();
 }
 

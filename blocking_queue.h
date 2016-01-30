@@ -8,8 +8,8 @@
 template <typename T>
 class BlockingQueue {
 public:
-    void push(T const& value);
-    T pop();
+    void Push(T const& value);
+    T Pop();
 
 private:
     std::mutex              mutex_;
@@ -17,9 +17,8 @@ private:
     std::deque<T>           queue_;
 };
 
-
 template<typename T>
-void BlockingQueue<T>::push(T const& value)
+void BlockingQueue<T>::Push(T const& value)
 {
 	{
 		std::unique_lock<std::mutex> lock(this->mutex_);
@@ -29,13 +28,17 @@ void BlockingQueue<T>::push(T const& value)
 }
 
 template<typename T>
-T BlockingQueue<T>::pop()
+T BlockingQueue<T>::Pop()
 {
 	std::unique_lock<std::mutex> lock(this->mutex_);
-	this->condition_.wait(lock, [=]{ return !this->queue_.empty(); });
-	T rc(std::move(this->queue_.back()));
+	this->condition_.wait_for(lock, std::chrono::milliseconds(100),
+							  [=]{ return !this->queue_.empty(); });
+	if (this->queue_.empty())
+		return NULL;
+
+	T obj(std::move(this->queue_.back()));
 	this->queue_.pop_back();
-	return rc;
+	return obj;
 }
 
 #endif
