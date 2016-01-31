@@ -7,7 +7,7 @@
 #include "network.h"
 #include "request.h"
 #include "response.h"
-#include "blocking_queue.h"
+#include "node.h"
 
 class KafkaClient {
 public:
@@ -16,12 +16,13 @@ public:
 
 	int Init();
 	int Start();
+	int PushRequest(Node *node, Request *request);
+	short PopResponse(Node *node, Response **response);
+
 
 	Network *network_;
-	std::map<int, std::deque<Request *>> in_flight_requests_;
 
-	BlockingQueue<Request*> send_queue_;
-	BlockingQueue<Response*> receive_queue_;
+	std::map<std::string, Node*> nodes_;
 };
 
 #endif

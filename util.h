@@ -19,6 +19,8 @@ namespace Util
 	int net_bytes_to_int(char *buf);
 
 	short net_bytes_to_short(char *buf);
+
+	string HostnameToIp(const string &hostname);
 } // end of namespace
 
 #endif

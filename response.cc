@@ -3,18 +3,18 @@
 
 
 //------------------------------Head
-Response::Response(int correlation_id)
-	: total_size_(0), correlation_id_(correlation_id) 
+Response::Response(short api_key, int correlation_id)
 {
+	api_key_ = api_key;
 	total_size_ = 0;
 	correlation_id_ = correlation_id;
 }
 
 
 //------------------------------GroupCoordinatorResponse
-GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short error_code,
+GroupCoordinatorResponse::GroupCoordinatorResponse(short api_key, int correlation_id, short error_code,
 		int coordinator_id, const std::string &coordinator_host, int coordinator_port)
-	: Response(correlation_id)
+	: Response(api_key, correlation_id)
 {
 	error_code_ = error_code;
 	coordinator_id_ = coordinator_id;

@@ -6,8 +6,11 @@
 //------------------------------Head
 class Response {
 public:
-	Response(int correlation_id);
+	Response(short api_key, int correlation_id);
+	virtual ~Response() {}
 
+	short api_key_;			// it's not a part of protocol 
+	
 	int total_size_;		// exclude itself
 	int correlation_id_;
 };
@@ -16,7 +19,7 @@ public:
 //------------------------------GroupCoordinatorResponse
 class GroupCoordinatorResponse: public Response {
 public:
-	GroupCoordinatorResponse(int correlation_id, short error_code,
+	GroupCoordinatorResponse(short api_key, int correlation_id, short error_code,
 		int coordinator_id, const std::string &coordinator_host, int coordinator_port);
 
 	short error_code_;

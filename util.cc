@@ -3,6 +3,9 @@
 #include <sstream>
 #include <algorithm>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <iostream>
 
 #include "util.h"
 
@@ -17,7 +20,6 @@ inline string &ltrim(string &s)
 	return s;
 }
 
-
 // trim from end
 inline string &rtrim(string &s)
 {
@@ -25,13 +27,11 @@ inline string &rtrim(string &s)
 	return s;
 }
 
-
 // trim from both ends
 inline string &trim(string &s)
 {
 	return ltrim(rtrim(s));
 }
-
 
 vector<string> split(const string &str, char delimiter)
 {
@@ -47,7 +47,6 @@ vector<string> split(const string &str, char delimiter)
 	return internal;
 }
 
-
 int net_bytes_to_int(char *buf)
 {
 	int a = buf[0] & 0xFF;
@@ -57,12 +56,23 @@ int net_bytes_to_int(char *buf)
 	return ntohl(a);
 }
 
-
 short net_bytes_to_short(char *buf)
 {
 	int a = buf[0] & 0xFF;
 	a |= ((buf[1] << 8) & 0xFF00);
 	return ntohs(a);
+}
+
+string HostnameToIp(const string &hostname)
+{
+	string ip = "";
+	hostent *record = gethostbyname(hostname.c_str());
+	if(record != NULL)
+	{
+		in_addr *address = (in_addr *)record->h_addr;
+		ip = inet_ntoa(*address);
+	}
+	return ip;
 }
 
 } // end of namespace

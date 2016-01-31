@@ -11,8 +11,8 @@
 #include "common.h"
 
 
-static int ReceiveResponse(int fd, KafkaClient *client);
-static int SendRequest(int fd, KafkaClient *client, Request *request);
+static int ReceiveResponse(int fd, Network *network);
+static int SendRequest(int fd, Network *network, Request *request);
 
 static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revents)
 {
@@ -33,7 +33,7 @@ static int GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int 
 
 static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 {
-	KafkaClient *client = (KafkaClient *)ev_userdata(loop);
+	Network *network = (Network *)ev_userdata(loop);
 
 	//std::cout << "aaaaaaaaaa" << std::endl;
 	//sleep(1);
@@ -41,7 +41,7 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 	if (events & EV_READ)
 	{
 		//std::cout << "read ready" << std::endl;
-		int ret = ReceiveResponse(w->fd, client);
+		int ret = ReceiveResponse(w->fd, network);
 		if (ret <= 0)
 		{
 			if (ret == 0)
@@ -58,14 +58,10 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 	}
 	if (events & EV_WRITE)
 	{
-		// Get request from kafka client
-		Request *request = client->send_queue_.Pop();
+		// Get request from network 
+		Request *request = network->send_queues_[w->fd].Pop(100);
 		if (request != NULL)
-			SendRequest(w->fd, client, request);
-
-		//std::vector<std::string> topic({"test"});
-		//JoinGroupRequest request_2(1, "test", "", topic);
-		//send_request(w->fd, request_2);
+			SendRequest(w->fd, network, request);
 
 		//ev_io_stop(loop, w);
 		//ev_io_set(w, w->fd, EV_READ);
@@ -74,7 +70,7 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 #endif
 }
 
-static int ReceiveResponse(int fd, KafkaClient *client)
+static int ReceiveResponse(int fd, Network *network)
 {
 	char buf[1024] = {0};
 	int nread = read(fd, buf, 1024);
@@ -92,7 +88,7 @@ static int ReceiveResponse(int fd, KafkaClient *client)
 	std::cout << "correlation id = " << correlation_id << std::endl;
 	p += 4;
 
-	std::deque<Request *> in_flight_requests = client->in_flight_requests_.at(fd);
+	std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(fd);
 	int api_key = GetApiKeyFromResponse(in_flight_requests, correlation_id);
 
 	if (api_key < 0)
@@ -102,7 +98,9 @@ static int ReceiveResponse(int fd, KafkaClient *client)
 	}
 
 	// pop
+	pthread_mutex_lock(&network->queue_mutex_);
 	in_flight_requests.pop_front();
+	pthread_mutex_unlock(&network->queue_mutex_);
 
 	switch(api_key)
 	{
@@ -118,21 +116,59 @@ static int ReceiveResponse(int fd, KafkaClient *client)
 			p += host_size;
 			int coordinator_port = Util::net_bytes_to_int(p); 
 
-			GroupCoordinatorResponse response(correlation_id, error_code, coordinator_id,
-											  coordinator_host, coordinator_port);
+			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(
+								api_key,
+								correlation_id, error_code, coordinator_id,
+								coordinator_host, coordinator_port);
 
-			std::cout << "correlation id = " << response.correlation_id_ << std::endl;
-			std::cout << "error code = " << response.error_code_ << std::endl;
-			std::cout << "coordinator id = " << response.coordinator_id_ << std::endl;
-			std::cout << "coordinator host = " << response.coordinator_host_ << std::endl;
-			std::cout << "coordinator port = " << response.coordinator_port_ << std::endl;
-
-			std::cout << response.total_size_ << std::endl;
+			network->receive_queues_[fd].Push(response);
 
 			break;
 		}
 		case 11:
 		{
+			short error_code = Util::net_bytes_to_short(p);
+			p += 2;
+			int generation_id = Util::net_bytes_to_int(p);
+			p += 4;
+
+			// GroupProtocol
+			short group_protocol_size = Util::net_bytes_to_short(p);
+			p += 2;
+			std::string group_protocol(p, group_protocol_size);
+			p += group_protocol_size;
+
+			// LeaderId
+			short leader_id_size = Util::net_bytes_to_short(p);
+			p += 2;
+			std::string leader_id(p, leader_id_size);
+			p += leader_id_size;
+
+			// MemberId
+			short member_id_size = Util::net_bytes_to_short(p);
+			p += 2;
+			std::string member_id(p, member_id_size);
+			p += member_id_size;
+
+			// Members
+			int members_size = Util::net_bytes_to_int(p);
+			p += 4;
+
+			for (int i = 0; i < members_size; i++)
+			{
+				// follower MemberId
+				short member_id_size = Util::net_bytes_to_short(p);
+				p += 2;
+				std::string member_id(p, member_id_size);
+				p += member_id_size;
+
+				// MemberMetadata
+				int member_metadata_size = Util::net_bytes_to_int(p);
+				p += 4;
+				std::string member_metadata(p, member_metadata_size);
+				p += member_metadata_size;
+			}
+
 			break;
 		}
 	}
@@ -140,7 +176,7 @@ static int ReceiveResponse(int fd, KafkaClient *client)
 	return nread;
 }
 
-static int SendRequest(int fd, KafkaClient *client, Request *request)
+static int SendRequest(int fd, Network *network, Request *request)
 {
 	char *packet = new char[request->total_size_ + 4];
 	char *p = packet;
@@ -177,6 +213,8 @@ static int SendRequest(int fd, KafkaClient *client, Request *request)
 		case 10:
 		{
 			GroupCoordinatorRequest *r = dynamic_cast<GroupCoordinatorRequest*>(request);
+
+			// group id
 			short group_id_size = htons((short)r->group_id_.length());
 			memcpy(p, &group_id_size, 2);
 			p += 2;
@@ -215,8 +253,8 @@ static int SendRequest(int fd, KafkaClient *client, Request *request)
 			p += r->protocol_type_.length();
 
 			// array size
-			int group_protocol_size = htonl(r->group_protocols_.size());
-			memcpy(p, &group_protocol_size, 4);
+			int group_protocols_size = htonl(r->group_protocols_.size());
+			memcpy(p, &group_protocols_size, 4);
 			p += 4;
 
 			for (int i = 0; i < r->group_protocols_.size(); i++)
@@ -265,7 +303,9 @@ static int SendRequest(int fd, KafkaClient *client, Request *request)
 	std::cout << "Send " << n << " bytes" << std::endl;
 
 	// push request to in flight request queue
-	client->in_flight_requests_[fd].push_back(request);
+	pthread_mutex_lock(&network->queue_mutex_);
+	network->in_flight_requests_[fd].push_back(request);
+	pthread_mutex_unlock(&network->queue_mutex_);
 
 	return 0;
 }
@@ -280,6 +320,7 @@ static void* EventLoopThread(void *arg)
 //-----------------------------------Network
 Network::Network()
 {
+	queue_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 	//loop_ = NULL;
 }
 
@@ -292,19 +333,22 @@ Network::~Network()
 	}
 }
 
-int Network::Init(KafkaClient *client)
+int Network::Init(KafkaClient *client, const std::string &broker_list)
 {
 	client_ = client;
 
-	//loop_ = EV_DEFAULT;
+	std::vector<std::string> brokers = Util::split(broker_list, ',');
+	for (int i = 0; i < brokers.size(); i++)
+	{
+		std::vector<std::string> host_port = Util::split(brokers[i], ':');
+		std::string host = Util::HostnameToIp(host_port[0]);
+		int port = std::stoi(host_port[1]);
+		int fd = common::new_tcp_client(host.c_str(), port);
+		fds_.push_back(fd);
 
-	int fd_b1 = common::new_tcp_client("10.123.81.11", 9092);
-	int fd_b2 = common::new_tcp_client("10.123.81.12", 9092);
-	int fd_b3 = common::new_tcp_client("10.123.81.13", 9092);
-
-	fds_.push_back(fd_b1);
-	fds_.push_back(fd_b2);
-	fds_.push_back(fd_b3);
+		Node *node = new Node(fd, -1, host, port);
+		client->nodes_.insert({host, node});
+	}
 
 	loops_.resize(fds_.size());
 
@@ -313,10 +357,8 @@ int Network::Init(KafkaClient *client)
 		loops_[i] = ev_loop_new(EVFLAG_AUTO);
 
 		// associate KafkaClient with the loop
-		ev_set_userdata(loops_[i], client);
+		ev_set_userdata(loops_[i], this);
 	}
-
-	//watchers_.resize(3);
 
 	for (int i = 0; i < fds_.size(); i++)
 	{

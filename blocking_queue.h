@@ -9,7 +9,7 @@ template <typename T>
 class BlockingQueue {
 public:
     void Push(T const& value);
-    T Pop();
+    T Pop(long timeout);
 
 private:
     std::mutex              mutex_;
@@ -28,11 +28,19 @@ void BlockingQueue<T>::Push(T const& value)
 }
 
 template<typename T>
-T BlockingQueue<T>::Pop()
+T BlockingQueue<T>::Pop(long timeout)
 {
 	std::unique_lock<std::mutex> lock(this->mutex_);
-	this->condition_.wait_for(lock, std::chrono::milliseconds(100),
-							  [=]{ return !this->queue_.empty(); });
+	if (timeout > 0)
+	{
+		this->condition_.wait_for(lock, std::chrono::milliseconds(timeout),
+								  [=]{ return !this->queue_.empty(); });
+	}
+	else
+	{
+		this->condition_.wait(lock, [=]{ return !this->queue_.empty(); });
+	}
+
 	if (this->queue_.empty())
 		return NULL;
 
