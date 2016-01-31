@@ -2,6 +2,7 @@
 #define _RESPONSE_H_
 
 #include <string>
+#include <vector>
 
 //------------------------------Head
 class Response {
@@ -32,17 +33,17 @@ public:
 //------------------------------JoinGroupResponse
 class Member {
 public:
+	Member(const std::string &member_id, const std::string &member_metadata);
+
 	std::string member_id_;
-	int member_metadata_size_;
-	char *member_metadata_;
+	std::string member_metadata_;	// bytes array
 };
 
-#if 0
 class JoinGroupResponse: public Response {
 public:
-	JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code, int generation_id,
-		std::string group_protocol, std::string leader_id, std::string member_id,
-		std::vector<Member> members);
+	JoinGroupResponse(short api_key, int correlation_id, short error_code,
+			int generation_id, const std::string &group_protocol, const std::string &leader_id,
+			const std::string &member_id, const std::vector<Member> &members);
 
 	short error_code_;
 	int generation_id_;
@@ -51,6 +52,5 @@ public:
 	std::string member_id_;
 	std::vector<Member> members_;
 };
-#endif
 
 #endif

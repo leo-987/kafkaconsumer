@@ -1,5 +1,4 @@
 
-#all: main
 
 run_main: main
 	./main
@@ -10,3 +9,4 @@ main: main.cc kafka_client.cc network.cc request.cc response.cc util.cc blocking
 
 clean:
 	rm main -rf
+

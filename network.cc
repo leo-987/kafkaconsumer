@@ -19,7 +19,7 @@ static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revent
 	ev_break(loop, EVBREAK_ALL);
 }
 
-static int GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int correlation_id)
+static short GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int correlation_id)
 {
 	if (in_flight_requests.empty())
 		return -1;
@@ -82,10 +82,8 @@ static int ReceiveResponse(int fd, Network *network)
 
 	char *p = buf;
 	int response_size = Util::net_bytes_to_int(p);
-	std::cout << "response size = " << response_size << std::endl;
 	p += 4;
 	int correlation_id = Util::net_bytes_to_int(p); 
-	std::cout << "correlation id = " << correlation_id << std::endl;
 	p += 4;
 
 	std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(fd);
@@ -121,6 +119,13 @@ static int ReceiveResponse(int fd, Network *network)
 								correlation_id, error_code, coordinator_id,
 								coordinator_host, coordinator_port);
 
+			if (response_size != response->total_size_)
+			{
+				std::cerr << "Size are not equal..." << std::endl;
+				delete response;
+				break;
+			}
+
 			network->receive_queues_[fd].Push(response);
 
 			break;
@@ -154,6 +159,7 @@ static int ReceiveResponse(int fd, Network *network)
 			int members_size = Util::net_bytes_to_int(p);
 			p += 4;
 
+			std::vector<Member> members;
 			for (int i = 0; i < members_size; i++)
 			{
 				// follower MemberId
@@ -167,10 +173,25 @@ static int ReceiveResponse(int fd, Network *network)
 				p += 4;
 				std::string member_metadata(p, member_metadata_size);
 				p += member_metadata_size;
+
+				Member member(member_id, member_metadata);
+				members.push_back(member);
 			}
 
+			JoinGroupResponse *response = new JoinGroupResponse(api_key, correlation_id,
+					error_code, generation_id, group_protocol, leader_id, member_id, members);
+
+			if (response_size != response->total_size_)
+			{
+				std::cerr << "Size are not equal..." << std::endl;
+				delete response;
+				break;
+			}
+
+			network->receive_queues_[fd].Push(response);
 			break;
 		}
+
 	}
 
 	return nread;
@@ -341,9 +362,10 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 	for (int i = 0; i < brokers.size(); i++)
 	{
 		std::vector<std::string> host_port = Util::split(brokers[i], ':');
-		std::string host = Util::HostnameToIp(host_port[0]);
+		std::string host = host_port[0];
+		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
-		int fd = common::new_tcp_client(host.c_str(), port);
+		int fd = common::new_tcp_client(ip.c_str(), port);
 		fds_.push_back(fd);
 
 		Node *node = new Node(fd, -1, host, port);

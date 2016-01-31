@@ -19,7 +19,6 @@ public:
 	int PushRequest(Node *node, Request *request);
 	short PopResponse(Node *node, Response **response);
 
-
 	Network *network_;
 
 	std::map<std::string, Node*> nodes_;

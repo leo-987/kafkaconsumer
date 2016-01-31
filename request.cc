@@ -63,7 +63,7 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 		{
 			array_len += 2 + subscription[j].length();
 		}
-		array_len += 4 + group_protocols_[i].protocol_metadata_.user_data_.size();
+		array_len += 4 + group_protocols_[i].protocol_metadata_.user_data_.length();
 	}
 
 	total_size_ = 2 + 2 + 4 + 2 + client_id_.length() +		// head

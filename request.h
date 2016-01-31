@@ -36,7 +36,7 @@ public:
 
 	short version_;
 	std::vector<std::string> subscription_;
-	std::vector<char> user_data_;
+	std::string user_data_;		// bytes array
 };
 
 
