@@ -8,7 +8,7 @@
 #include "network.h"
 #include "util.h"
 #include "response.h"
-#include "common.h"
+#include "net_util.h"
 
 
 static int ReceiveResponse(int fd, Network *network);
@@ -365,7 +365,7 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 		std::string host = host_port[0];
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
-		int fd = common::new_tcp_client(ip.c_str(), port);
+		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
 		fds_.push_back(fd);
 
 		Node *node = new Node(fd, -1, host, port);

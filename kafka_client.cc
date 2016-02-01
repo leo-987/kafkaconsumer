@@ -68,6 +68,14 @@ int KafkaClient::Start()
 			std::cout << "group protocol = " << join_response->group_protocol_ << std::endl;
 			std::cout << "leader id = " << join_response->leader_id_ << std::endl;
 			std::cout << "member id = " << join_response->member_id_ << std::endl;
+			std::cout << "members:" << std::endl;
+			for (int i = 0; i < join_response->members_.size(); i++)
+			{
+				Member &member = join_response->members_[i];
+
+				std::cout << "	member id = " << member.member_id_ << std::endl;
+				std::cout << "	member metadata = " << member.member_metadata_ << std::endl;
+			}
 			std::cout << "total size = " << join_response->total_size_ << std::endl;
 
 			break;

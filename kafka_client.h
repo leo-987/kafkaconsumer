@@ -21,6 +21,7 @@ public:
 
 	Network *network_;
 
+	// hostname -> Node
 	std::map<std::string, Node*> nodes_;
 };
 
