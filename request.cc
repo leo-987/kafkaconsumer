@@ -2,6 +2,20 @@
 
 #include "request.h"
 
+short ApiKey::ProduceRequest          = 0;
+short ApiKey::FetchRequest            = 1;
+short ApiKey::OffsetRequest           = 2;
+short ApiKey::MetadataRequest         = 3;
+short ApiKey::OffsetCommitRequest     = 8;
+short ApiKey::OffsetFetchRequest      = 9;
+short ApiKey::GroupCoordinatorRequest = 10;
+short ApiKey::JoinGroupRequest        = 11;
+short ApiKey::HeartbeatRequest        = 12;
+short ApiKey::LeaveGroupRequest       = 13;
+short ApiKey::SyncGroupRequest        = 14;
+short ApiKey::DescribeGroupsRequest   = 15;
+short ApiKey::ListGroupsRequest       = 16;
+
 //------------------------------Head
 Request::Request(short api_key, int correlation_id, std::string client_id)
 {
@@ -55,11 +69,11 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 
 	int array_len = 0;
 
-	for (int i = 0; i < group_protocols_.size(); i++)
+	for (unsigned int i = 0; i < group_protocols_.size(); i++)
 	{
 		array_len += 2 + group_protocols_[i].assignment_strategy_.length() + 2 /* version */+ 4 /* array */;
 		std::vector<std::string> &subscription = group_protocols_[i].protocol_metadata_.subscription_;
-		for (int j = 0; j < subscription.size(); j++)
+		for (unsigned int j = 0; j < subscription.size(); j++)
 		{
 			array_len += 2 + subscription[j].length();
 		}

@@ -5,6 +5,21 @@
 #include <vector>
 #include <utility>
 
+struct ApiKey {
+	static short ProduceRequest;
+	static short FetchRequest;
+	static short OffsetRequest;
+	static short MetadataRequest;
+	static short OffsetCommitRequest;
+	static short OffsetFetchRequest;
+	static short GroupCoordinatorRequest;
+	static short JoinGroupRequest;
+	static short HeartbeatRequest;
+	static short LeaveGroupRequest;
+	static short SyncGroupRequest;
+	static short DescribeGroupsRequest;
+	static short ListGroupsRequest;
+};
 
 //------------------------------Head
 class Request {

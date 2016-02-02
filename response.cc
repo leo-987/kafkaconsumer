@@ -45,7 +45,7 @@ JoinGroupResponse::JoinGroupResponse(short api_key, int correlation_id, short er
 	members_ = members;
 
 	int members_size = 4;
-	for (int i = 0; i < members_.size(); i++)
+	for (unsigned int i = 0; i < members_.size(); i++)
 	{
 		members_size += 2 + members_[i].member_id_.length() +
 						4 + members_[i].member_metadata_.length();

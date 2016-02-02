@@ -17,16 +17,23 @@ int KafkaClient::Init()
 {
 	std::string broker_list = "w-w1901.add.nbt.qihoo.net:9092,w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
 
+
 	network_ = new Network();
 	network_->Init(this, broker_list);
 
+	state_machine_ = new StateMachine(network_, nodes_);
+	state_machine_->Init();
+
 	std::cout << "KafkaClient init OK!" << std::endl;
+
+	return 0;
 }
 
 int KafkaClient::Start()
 {
 	network_->Start();
 
+#if 0
 	//GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
 	//auto it = nodes_.begin();
 	//std::advance(it, rand() % nodes_.size());
@@ -69,7 +76,7 @@ int KafkaClient::Start()
 			std::cout << "leader id = " << join_response->leader_id_ << std::endl;
 			std::cout << "member id = " << join_response->member_id_ << std::endl;
 			std::cout << "members:" << std::endl;
-			for (int i = 0; i < join_response->members_.size(); i++)
+			for (unsigned int i = 0; i < join_response->members_.size(); i++)
 			{
 				Member &member = join_response->members_[i];
 
@@ -82,14 +89,22 @@ int KafkaClient::Start()
 		}
 	}
 
-	sleep(3);
+#endif
+
+	state_machine_->Start();
+
+	state_machine_->Stop();
 	network_->Stop();
+
+	return 0;
 }
 
+#if 0
 int KafkaClient::PushRequest(Node *node, Request *request)
 {
 	int fd = node->fd_;
 	network_->send_queues_[fd].Push(request);
+	return 0;
 }
 
 short KafkaClient::PopResponse(Node *node, Response **response)
@@ -102,4 +117,4 @@ short KafkaClient::PopResponse(Node *node, Response **response)
 
 	return r->api_key_;
 }
-
+#endif

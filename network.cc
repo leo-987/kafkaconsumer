@@ -22,11 +22,17 @@ static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revent
 static short GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int correlation_id)
 {
 	if (in_flight_requests.empty())
+	{
+		std::cout << "in_flight_requests queue is empty" << std::endl;
 		return -1;
+	}
 
 	Request *in_flight_request = in_flight_requests.front();
 	if (in_flight_request->correlation_id_ != correlation_id)
+	{
+		std::cout << "The correlation_id are not equal" << std::endl;
 		return -1;
+	}
 
 	return in_flight_request->api_key_;
 }
@@ -115,8 +121,7 @@ static int ReceiveResponse(int fd, Network *network)
 			int coordinator_port = Util::net_bytes_to_int(p); 
 
 			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(
-								api_key,
-								correlation_id, error_code, coordinator_id,
+								api_key, correlation_id, error_code, coordinator_id,
 								coordinator_host, coordinator_port);
 
 			if (response_size != response->total_size_)
@@ -278,7 +283,7 @@ static int SendRequest(int fd, Network *network, Request *request)
 			memcpy(p, &group_protocols_size, 4);
 			p += 4;
 
-			for (int i = 0; i < r->group_protocols_.size(); i++)
+			for (unsigned int i = 0; i < r->group_protocols_.size(); i++)
 			{
 				// assignment strategy
 				GroupProtocol &gp = r->group_protocols_[i];
@@ -298,7 +303,7 @@ static int SendRequest(int fd, Network *network, Request *request)
 				memcpy(p, &topics_size, 4);
 				p += 4;
 
-				for (int j = 0; j < gp.protocol_metadata_.subscription_.size(); j++)
+				for (unsigned int j = 0; j < gp.protocol_metadata_.subscription_.size(); j++)
 				{
 					std::string topic = gp.protocol_metadata_.subscription_[j];
 					short topic_size = htons((short)topic.length());
@@ -347,7 +352,7 @@ Network::Network()
 
 Network::~Network()
 {
-	for (int i = 0; i < fds_.size(); i++)
+	for (unsigned int i = 0; i < fds_.size(); i++)
 	{
 	    close(fds_[i]);
     	ev_loop_destroy(loops_[i]);
@@ -359,7 +364,7 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 	client_ = client;
 
 	std::vector<std::string> brokers = Util::split(broker_list, ',');
-	for (int i = 0; i < brokers.size(); i++)
+	for (unsigned int i = 0; i < brokers.size(); i++)
 	{
 		std::vector<std::string> host_port = Util::split(brokers[i], ':');
 		std::string host = host_port[0];
@@ -374,7 +379,7 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 
 	loops_.resize(fds_.size());
 
-	for (int i = 0; i < loops_.size(); i++)
+	for (unsigned int i = 0; i < loops_.size(); i++)
 	{
 		loops_[i] = ev_loop_new(EVFLAG_AUTO);
 
@@ -382,7 +387,7 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 		ev_set_userdata(loops_[i], this);
 	}
 
-	for (int i = 0; i < fds_.size(); i++)
+	for (unsigned int i = 0; i < fds_.size(); i++)
 	{
 		// io watcher
 		ev_io watcher;
@@ -396,11 +401,13 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 	}
 
 	std::cout << "Network init OK!" << std::endl;
+
+	return 0;
 }
 
 int Network::Start()
 {
-	for (int i = 0; i < loops_.size(); i++)
+	for (unsigned int i = 0; i < loops_.size(); i++)
 	{
 		// start watchers
 		ev_io_start(loops_[i], &watchers_[i]);
@@ -413,11 +420,12 @@ int Network::Start()
 	}
 
 	std::cout << "Net thread created!" << std::endl;
+	return 0;
 }
 
 int Network::Stop()
 {
-	for (int i = 0; i < loops_.size(); i++)
+	for (unsigned int i = 0; i < loops_.size(); i++)
 	{
 		ev_io_stop(loops_[i], &watchers_[i]);
 
