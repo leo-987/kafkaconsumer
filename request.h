@@ -26,6 +26,8 @@ class Request {
 public:
 	Request(short api_key, int correlation_id, std::string client_id = "client_oyld");
 	virtual ~Request() {}
+
+	virtual void Print();
 	
 	int   total_size_;		// exclude itself
 	short api_key_;
@@ -39,6 +41,8 @@ public:
 class GroupCoordinatorRequest: public Request {
 public:
 	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
+
+	virtual void Print();
 
 	std::string group_id_;
 };
@@ -70,9 +74,11 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
+	virtual void Print();
+
 	std::string group_id_;
 	int session_timeout_;
-	std::string member_id_;
+	std::string member_id_;			// When a member first joins the group, the memberId will be empty
 	std::string protocol_type_;		// "consumer"
 	std::vector<GroupProtocol> group_protocols_;
 };

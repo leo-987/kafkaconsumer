@@ -74,14 +74,7 @@ int StateMachine::DiscoverCoordinator(Event &event)
 	}
 
 	GroupCoordinatorResponse *coor_response = dynamic_cast<GroupCoordinatorResponse*>(response);
-
-	std::cout << "api key = " << coor_response->api_key_ << std::endl;
-	std::cout << "correlation id = " << coor_response->correlation_id_ << std::endl;
-	std::cout << "error code = " << coor_response->error_code_ << std::endl;
-	std::cout << "coordinator id = " << coor_response->coordinator_id_ << std::endl;
-	std::cout << "coordinator host = " << coor_response->coordinator_host_ << std::endl;
-	std::cout << "coordinator port = " << coor_response->coordinator_port_ << std::endl;
-	std::cout << "total size = " << coor_response->total_size_ << std::endl;
+	coor_response->Print();
 
 	// next state
 	current_state_ = &StateMachine::PartOfGroup;
@@ -113,23 +106,7 @@ int StateMachine::PartOfGroup(Event &event)
 			}
 
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
-
-			std::cout << "api key = " << join_response->api_key_ << std::endl;
-			std::cout << "correlation id = " << join_response->correlation_id_ << std::endl;
-			std::cout << "error code = " << join_response->error_code_ << std::endl;
-			std::cout << "generation id = " << join_response->generation_id_ << std::endl;
-			std::cout << "group protocol = " << join_response->group_protocol_ << std::endl;
-			std::cout << "leader id = " << join_response->leader_id_ << std::endl;
-			std::cout << "member id = " << join_response->member_id_ << std::endl;
-			std::cout << "members:" << std::endl;
-			for (unsigned int i = 0; i < join_response->members_.size(); i++)
-			{
-				Member &member = join_response->members_[i];
-
-				std::cout << "	member id = " << member.member_id_ << std::endl;
-				std::cout << "	member metadata = " << member.member_metadata_ << std::endl;
-			}
-			std::cout << "total size = " << join_response->total_size_ << std::endl;
+			join_response->Print();
 
 			// next state
 			event = Event::HEARTBEAT;

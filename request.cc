@@ -26,6 +26,14 @@ Request::Request(short api_key, int correlation_id, std::string client_id)
 	client_id_ = client_id;
 }
 
+void Request::Print()
+{
+	std::cout << "total size = " << total_size_ << std::endl;
+	std::cout << "api key = " << api_key_ << std::endl;
+	std::cout << "api version = " << api_version_ << std::endl;
+	std::cout << "correlation id = " << correlation_id_ << std::endl;
+	std::cout << "client id = " << client_id_ << std::endl;
+}
 
 //------------------------------GroupCoordinatorRequest
 GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::string &group_id)
@@ -36,6 +44,12 @@ GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::
 				  2 + group_id_.length();					// body
 }
 
+void GroupCoordinatorRequest::Print()
+{
+	std::cout << "-----GroupCoordinatorRequest-----" << std::endl;
+	Request::Print();
+	std::cout << "group id = " << group_id_ << std::endl;
+}
 
 //------------------------------JoinGroupRequest
 ProtocolMetadata::ProtocolMetadata(const std::vector<std::string> &topics)
@@ -58,14 +72,14 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 		const std::vector<std::string> &topics)
 	: Request(11, correlation_id)
 {
-	// only one group protocol
-	GroupProtocol group_protocols(topics);
-	group_protocols_.push_back(topics);
-
 	group_id_ = group_id;
 	session_timeout_ = 30000;
 	member_id_ = member_id;
 	protocol_type_ = "consumer";
+
+	// only one group protocol
+	GroupProtocol group_protocol(topics);
+	group_protocols_.push_back(group_protocol);
 
 	int array_len = 0;
 
@@ -85,5 +99,23 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 				  4/* array */ + array_len;
 }
 
+void JoinGroupRequest::Print()
+{
+	std::cout << "-----JoinGroupRequest-----" << std::endl;
+	Request::Print();
+	std::cout << "group id = " << group_id_ << std::endl;
+	std::cout << "session timeout = " << session_timeout_ << std::endl;
+	std::cout << "member id = " << member_id_ << std::endl;
+	std::cout << "protocol type = " << protocol_type_ << std::endl;
 
+	for (unsigned int i = 0; i < group_protocols_.size(); i++)
+	{
+		GroupProtocol &gp = group_protocols_[i];
+		std::cout << "	assignment strategy = " << gp.assignment_strategy_ << std::endl;
+		std::cout << "	version = " << gp.protocol_metadata_.version_ << std::endl;
+		for (unsigned int i = 0; i < gp.protocol_metadata_.subscription_.size(); i++)
+			std::cout << "	subscription = " << gp.protocol_metadata_.subscription_[i] << std::endl;
+		std::cout << "	user data = " << gp.protocol_metadata_.user_data_ << std::endl;
+	}
+}
 

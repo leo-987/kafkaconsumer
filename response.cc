@@ -1,3 +1,4 @@
+#include <iostream>
 
 #include "response.h"
 
@@ -10,6 +11,12 @@ Response::Response(short api_key, int correlation_id)
 	correlation_id_ = correlation_id;
 }
 
+void Response::Print()
+{
+	std::cout << "api key = " << api_key_ << std::endl;
+	std::cout << "total size = " << total_size_ << std::endl;
+	std::cout << "correlation id = " << correlation_id_ << std::endl;
+}
 
 //------------------------------GroupCoordinatorResponse
 GroupCoordinatorResponse::GroupCoordinatorResponse(short api_key, int correlation_id, short error_code,
@@ -24,6 +31,15 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(short api_key, int correlatio
 				  2 /* coordinator_host size */ + coordinator_host_.length() + 4;
 }
 
+void GroupCoordinatorResponse::Print()
+{
+	std::cout << "-----GroupCoordinatorResponse-----" << std::endl;
+	Response::Print();
+	std::cout << "error code = " << error_code_ << std::endl;
+	std::cout << "coordinator id = " << coordinator_id_ << std::endl;
+	std::cout << "coordinator host = " << coordinator_host_ << std::endl;
+	std::cout << "coordinator port = " << coordinator_port_ << std::endl;
+}
 
 //------------------------------JoinGroupResponse
 Member::Member(const std::string &member_id, const std::string &member_metadata)
@@ -55,4 +71,22 @@ JoinGroupResponse::JoinGroupResponse(short api_key, int correlation_id, short er
 				  2 /* leader_id size */ + leader_id_.length() +
 				  2 /* member_id size */ + member_id_.length() +
 				  members_size;
+}
+
+void JoinGroupResponse::Print()
+{
+	std::cout << "-----JoinGroupResponse-----" << std::endl;
+	Response::Print();
+	std::cout << "error code = " << error_code_ << std::endl;
+	std::cout << "generation id = " << generation_id_ << std::endl;
+	std::cout << "group protocol = " << group_protocol_ << std::endl;
+	std::cout << "leader id = " << leader_id_ << std::endl;
+	std::cout << "member id = " << member_id_ << std::endl;
+	std::cout << "members:" << std::endl;
+	for (unsigned int i = 0; i < members_.size(); i++)
+	{
+		Member &member = members_[i];
+		std::cout << "	member id = " << member.member_id_ << std::endl;
+		std::cout << "	member metadata = " << member.member_metadata_ << std::endl;
+	}
 }

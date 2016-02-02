@@ -10,8 +10,9 @@ public:
 	Response(short api_key, int correlation_id);
 	virtual ~Response() {}
 
+	virtual void Print();
+
 	short api_key_;			// it's not a part of protocol 
-	
 	int total_size_;		// exclude itself
 	int correlation_id_;
 };
@@ -22,6 +23,8 @@ class GroupCoordinatorResponse: public Response {
 public:
 	GroupCoordinatorResponse(short api_key, int correlation_id, short error_code,
 		int coordinator_id, const std::string &coordinator_host, int coordinator_port);
+
+	virtual void Print();
 
 	short error_code_;
 	int coordinator_id_;
@@ -44,6 +47,8 @@ public:
 	JoinGroupResponse(short api_key, int correlation_id, short error_code,
 			int generation_id, const std::string &group_protocol, const std::string &leader_id,
 			const std::string &member_id, const std::vector<Member> &members);
+
+	virtual void Print();
 
 	short error_code_;
 	int generation_id_;
