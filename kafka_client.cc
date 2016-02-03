@@ -32,65 +32,6 @@ int KafkaClient::Init()
 int KafkaClient::Start()
 {
 	network_->Start();
-
-#if 0
-	//GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
-	//auto it = nodes_.begin();
-	//std::advance(it, rand() % nodes_.size());
-	//Node *node = it->second;
-	//PushRequest(node, group_request);
-
-	std::vector<std::string> topic({"test"});
-	JoinGroupRequest *join_request = new JoinGroupRequest(1, "group", "", topic);
-	Node *node = nodes_["w-w1902.add.nbt.qihoo.net"];
-	PushRequest(node, join_request);
-
-	Response *response;
-	short api_key = PopResponse(node, &response);
-
-	switch(api_key)
-	{
-		case 10:
-		{
-			GroupCoordinatorResponse *coor_response = dynamic_cast<GroupCoordinatorResponse*>(response);
-
-			std::cout << "api key = " << coor_response->api_key_ << std::endl;
-			std::cout << "correlation id = " << coor_response->correlation_id_ << std::endl;
-			std::cout << "error code = " << coor_response->error_code_ << std::endl;
-			std::cout << "coordinator id = " << coor_response->coordinator_id_ << std::endl;
-			std::cout << "coordinator host = " << coor_response->coordinator_host_ << std::endl;
-			std::cout << "coordinator port = " << coor_response->coordinator_port_ << std::endl;
-			std::cout << "total size = " << coor_response->total_size_ << std::endl;
-
-			break;
-		}
-		case 11:
-		{
-			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
-
-			std::cout << "api key = " << join_response->api_key_ << std::endl;
-			std::cout << "correlation id = " << join_response->correlation_id_ << std::endl;
-			std::cout << "error code = " << join_response->error_code_ << std::endl;
-			std::cout << "generation id = " << join_response->generation_id_ << std::endl;
-			std::cout << "group protocol = " << join_response->group_protocol_ << std::endl;
-			std::cout << "leader id = " << join_response->leader_id_ << std::endl;
-			std::cout << "member id = " << join_response->member_id_ << std::endl;
-			std::cout << "members:" << std::endl;
-			for (unsigned int i = 0; i < join_response->members_.size(); i++)
-			{
-				Member &member = join_response->members_[i];
-
-				std::cout << "	member id = " << member.member_id_ << std::endl;
-				std::cout << "	member metadata = " << member.member_metadata_ << std::endl;
-			}
-			std::cout << "total size = " << join_response->total_size_ << std::endl;
-
-			break;
-		}
-	}
-
-#endif
-
 	state_machine_->Start();
 
 	state_machine_->Stop();

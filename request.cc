@@ -107,12 +107,20 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 	GroupProtocol group_protocol(topics);
 	group_protocols_.push_back(group_protocol);
 
-	total_size_ = Request::Size() +		// head
-				  2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
-				  4 /* array */;
+	total_size_ = Size();
+}
+
+int JoinGroupRequest::Size()
+{
+	int size = 0;
+	size += Request::Size() +	// head
+			2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
+			4 /* array */;
 
 	for (unsigned int i = 0; i < group_protocols_.size(); i++)
-		total_size_ += group_protocols_[i].Size();
+		size += group_protocols_[i].Size();
+
+	return size;
 }
 
 void JoinGroupRequest::Print()

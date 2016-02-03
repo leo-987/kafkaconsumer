@@ -76,6 +76,7 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
+	virtual int Size();
 	virtual void Print();
 
 	std::string group_id_;
