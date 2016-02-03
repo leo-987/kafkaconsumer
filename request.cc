@@ -26,6 +26,11 @@ Request::Request(short api_key, int correlation_id, std::string client_id)
 	client_id_ = client_id;
 }
 
+int Request::Size()
+{
+	return 2 + 2 + 4 + 2 + client_id_.length();
+}
+
 void Request::Print()
 {
 	std::cout << "total size = " << total_size_ << std::endl;
@@ -40,8 +45,13 @@ GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::
 	: Request(10, correlation_id)
 {
 	group_id_ = group_id;
-	total_size_ = 2 + 2 + 4 + 2 + client_id_.length() +		// head
-				  2 + group_id_.length();					// body
+	total_size_ = Request::Size() +	// head
+				  Size();			// body
+}
+
+int GroupCoordinatorRequest::Size()
+{
+	return 2 + group_id_.length();
 }
 
 void GroupCoordinatorRequest::Print()
@@ -49,6 +59,7 @@ void GroupCoordinatorRequest::Print()
 	std::cout << "-----GroupCoordinatorRequest-----" << std::endl;
 	Request::Print();
 	std::cout << "group id = " << group_id_ << std::endl;
+	std::cout << "---------------------------------" << std::endl;
 }
 
 //------------------------------JoinGroupRequest
@@ -56,9 +67,19 @@ ProtocolMetadata::ProtocolMetadata(const std::vector<std::string> &topics)
 {
 	version_ = 0;
 	subscription_ = topics;
-	// user_data_ is empty 
+	user_data_ = "";
 }
 
+int ProtocolMetadata::Size()
+{
+	int size = 0;
+	size += 2;		// version
+	size += 4;		// array
+	for (unsigned int i = 0; i < subscription_.size(); i++)
+		size += 2 + subscription_[i].size();
+	size += 4 + user_data_.length();
+	return size;
+}
 
 GroupProtocol::GroupProtocol(const std::vector<std::string> &topics)
 	: protocol_metadata_(topics)
@@ -66,6 +87,11 @@ GroupProtocol::GroupProtocol(const std::vector<std::string> &topics)
 	assignment_strategy_ = "range";
 }
 
+int GroupProtocol::Size()
+{
+	return 2 + assignment_strategy_.length() +
+		   4 /* bytes */ + protocol_metadata_.Size();
+}
 
 JoinGroupRequest::JoinGroupRequest(int correlation_id,
 		const std::string &group_id, const std::string member_id,
@@ -81,22 +107,12 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 	GroupProtocol group_protocol(topics);
 	group_protocols_.push_back(group_protocol);
 
-	int array_len = 0;
+	total_size_ = Request::Size() +		// head
+				  2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
+				  4 /* array */;
 
 	for (unsigned int i = 0; i < group_protocols_.size(); i++)
-	{
-		array_len += 2 + group_protocols_[i].assignment_strategy_.length() + 2 /* version */+ 4 /* array */;
-		std::vector<std::string> &subscription = group_protocols_[i].protocol_metadata_.subscription_;
-		for (unsigned int j = 0; j < subscription.size(); j++)
-		{
-			array_len += 2 + subscription[j].length();
-		}
-		array_len += 4 + group_protocols_[i].protocol_metadata_.user_data_.length();
-	}
-
-	total_size_ = 2 + 2 + 4 + 2 + client_id_.length() +		// head
-				  2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
-				  4/* array */ + array_len;
+		total_size_ += group_protocols_[i].Size();
 }
 
 void JoinGroupRequest::Print()
@@ -117,5 +133,27 @@ void JoinGroupRequest::Print()
 			std::cout << "	subscription = " << gp.protocol_metadata_.subscription_[i] << std::endl;
 		std::cout << "	user data = " << gp.protocol_metadata_.user_data_ << std::endl;
 	}
+	std::cout << "--------------------------" << std::endl;
 }
 
+//------------------------------SyncGroupRequest
+#if 0
+MemberAssignment::MemberAssignment(const std::vector<std::string> &topics)
+{
+	version_ = 0;
+	subscription_ = topics;
+	// user_data_ is empty 
+}
+
+GroupAssignment::GroupAssignment(const std::vector<std::string> &topics, const std::string &member_id)
+	: member_assignment_(topics)
+{
+	member_id_ = member_id;
+}
+
+SyncGroupRequest::SyncGroupRequest(int correlation_id, const std::string &group_id, int generation_id,
+		const std::string &member_id, )
+{
+
+}
+#endif

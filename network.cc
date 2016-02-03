@@ -167,7 +167,7 @@ static int ReceiveResponse(int fd, Network *network)
 			std::vector<Member> members;
 			for (int i = 0; i < members_size; i++)
 			{
-				// follower MemberId
+				// MemberId
 				short member_id_size = Util::net_bytes_to_short(p);
 				p += 2;
 				std::string member_id(p, member_id_size);
@@ -196,7 +196,6 @@ static int ReceiveResponse(int fd, Network *network)
 			network->receive_queues_[fd].Push(response);
 			break;
 		}
-
 	}
 
 	return nread;
@@ -292,6 +291,11 @@ static int SendRequest(int fd, Network *network, Request *request)
 				p += 2;
 				memcpy(p, gp.assignment_strategy_.c_str(), gp.assignment_strategy_.length());
 				p += gp.assignment_strategy_.length();
+
+				// ProtocolMetadata bytes size
+				int protocol_metadata_size = htonl(gp.protocol_metadata_.Size());
+				memcpy(p, &protocol_metadata_size, 4);
+				p += 4;
 
 				// version
 				short version = htons(gp.protocol_metadata_.version_);

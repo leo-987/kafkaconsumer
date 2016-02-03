@@ -24,7 +24,7 @@ StateMachine::StateMachine(Network *network, std::map<std::string, Node*> &nodes
 
 int StateMachine::Init()
 {
-	signal(SIGINT, StateMachine::SignalHandler);
+	//signal(SIGINT, StateMachine::SignalHandler);
 	return 0;
 }
 
@@ -93,6 +93,8 @@ int StateMachine::PartOfGroup(Event &event)
 		{
 			std::vector<std::string> topic({"test"});
 			JoinGroupRequest *join_request = new JoinGroupRequest(1, "group", "", topic);
+			
+			join_request->Print();
 			Node *node = nodes_["w-w1902.add.nbt.qihoo.net"];
 
 			PushRequest(node, join_request);
