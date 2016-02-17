@@ -87,9 +87,9 @@ static int ReceiveResponse(int fd, Network *network)
 	}
 
 	char *p = buf;
-	int response_size = Util::net_bytes_to_int(p);
+	int response_size = Util::NetBytesToInt(p);
 	p += 4;
-	int correlation_id = Util::net_bytes_to_int(p); 
+	int correlation_id = Util::NetBytesToInt(p); 
 	p += 4;
 
 	std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(fd);
@@ -108,17 +108,17 @@ static int ReceiveResponse(int fd, Network *network)
 
 	switch(api_key)
 	{
-		case 10:
+		case ApiKey::GroupCoordinatorRequest:
 		{
-			short error_code = Util::net_bytes_to_short(p);
+			short error_code = Util::NetBytesToShort(p);
 			p += 2;
-			int coordinator_id = Util::net_bytes_to_int(p); 
+			int coordinator_id = Util::NetBytesToInt(p); 
 			p += 4;
-			short host_size = Util::net_bytes_to_short(p);
+			short host_size = Util::NetBytesToShort(p);
 			p += 2;
 			std::string coordinator_host(p, host_size);
 			p += host_size;
-			int coordinator_port = Util::net_bytes_to_int(p); 
+			int coordinator_port = Util::NetBytesToInt(p); 
 
 			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(
 								api_key, correlation_id, error_code, coordinator_id,
@@ -135,46 +135,46 @@ static int ReceiveResponse(int fd, Network *network)
 
 			break;
 		}
-		case 11:
+		case ApiKey::JoinGroupRequest:
 		{
-			short error_code = Util::net_bytes_to_short(p);
+			short error_code = Util::NetBytesToShort(p);
 			p += 2;
-			int generation_id = Util::net_bytes_to_int(p);
+			int generation_id = Util::NetBytesToInt(p);
 			p += 4;
 
 			// GroupProtocol
-			short group_protocol_size = Util::net_bytes_to_short(p);
+			short group_protocol_size = Util::NetBytesToShort(p);
 			p += 2;
 			std::string group_protocol(p, group_protocol_size);
 			p += group_protocol_size;
 
 			// LeaderId
-			short leader_id_size = Util::net_bytes_to_short(p);
+			short leader_id_size = Util::NetBytesToShort(p);
 			p += 2;
 			std::string leader_id(p, leader_id_size);
 			p += leader_id_size;
 
 			// MemberId
-			short member_id_size = Util::net_bytes_to_short(p);
+			short member_id_size = Util::NetBytesToShort(p);
 			p += 2;
 			std::string member_id(p, member_id_size);
 			p += member_id_size;
 
 			// Members
-			int members_size = Util::net_bytes_to_int(p);
+			int members_size = Util::NetBytesToInt(p);
 			p += 4;
 
 			std::vector<Member> members;
 			for (int i = 0; i < members_size; i++)
 			{
 				// MemberId
-				short member_id_size = Util::net_bytes_to_short(p);
+				short member_id_size = Util::NetBytesToShort(p);
 				p += 2;
 				std::string member_id(p, member_id_size);
 				p += member_id_size;
 
 				// MemberMetadata
-				int member_metadata_size = Util::net_bytes_to_int(p);
+				int member_metadata_size = Util::NetBytesToInt(p);
 				p += 4;
 				std::string member_metadata(p, member_metadata_size);
 				p += member_metadata_size;
@@ -235,7 +235,7 @@ static int SendRequest(int fd, Network *network, Request *request)
 
 	switch(request->api_key_)
 	{
-		case 10:
+		case ApiKey::GroupCoordinatorRequest:
 		{
 			GroupCoordinatorRequest *r = dynamic_cast<GroupCoordinatorRequest*>(request);
 
@@ -247,7 +247,7 @@ static int SendRequest(int fd, Network *network, Request *request)
 			break;
 		}
 
-		case 11:
+		case ApiKey::JoinGroupRequest:
 		{
 			JoinGroupRequest *r = dynamic_cast<JoinGroupRequest*>(request);
 
@@ -367,10 +367,10 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 {
 	client_ = client;
 
-	std::vector<std::string> brokers = Util::split(broker_list, ',');
+	std::vector<std::string> brokers = Util::Split(broker_list, ',');
 	for (unsigned int i = 0; i < brokers.size(); i++)
 	{
-		std::vector<std::string> host_port = Util::split(brokers[i], ':');
+		std::vector<std::string> host_port = Util::Split(brokers[i], ':');
 		std::string host = host_port[0];
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);

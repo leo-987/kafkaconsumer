@@ -2,20 +2,6 @@
 
 #include "request.h"
 
-short ApiKey::ProduceRequest          = 0;
-short ApiKey::FetchRequest            = 1;
-short ApiKey::OffsetRequest           = 2;
-short ApiKey::MetadataRequest         = 3;
-short ApiKey::OffsetCommitRequest     = 8;
-short ApiKey::OffsetFetchRequest      = 9;
-short ApiKey::GroupCoordinatorRequest = 10;
-short ApiKey::JoinGroupRequest        = 11;
-short ApiKey::HeartbeatRequest        = 12;
-short ApiKey::LeaveGroupRequest       = 13;
-short ApiKey::SyncGroupRequest        = 14;
-short ApiKey::DescribeGroupsRequest   = 15;
-short ApiKey::ListGroupsRequest       = 16;
-
 //------------------------------Head
 Request::Request(short api_key, int correlation_id, std::string client_id)
 {

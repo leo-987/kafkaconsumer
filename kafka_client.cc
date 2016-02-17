@@ -15,7 +15,8 @@ KafkaClient::~KafkaClient()
 
 int KafkaClient::Init()
 {
-	std::string broker_list = "w-w1901.add.nbt.qihoo.net:9092,w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
+	std::string broker_list = "w-w1901.add.nbt.qihoo.net:9092,\
+							   w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
 
 
 	network_ = new Network();

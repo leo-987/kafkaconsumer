@@ -14,26 +14,26 @@ namespace Util
 using namespace std;
 
 // trim from start
-inline string &ltrim(string &s)
+inline string &Ltrim(string &s)
 {
 	s.erase(s.begin(), find_if(s.begin(), s.end(), not1(ptr_fun<int, int>(isspace))));
 	return s;
 }
 
 // trim from end
-inline string &rtrim(string &s)
+inline string &Rtrim(string &s)
 {
 	s.erase(find_if(s.rbegin(), s.rend(), not1(ptr_fun<int, int>(isspace))).base(), s.end());
 	return s;
 }
 
 // trim from both ends
-inline string &trim(string &s)
+inline string &Trim(string &s)
 {
-	return ltrim(rtrim(s));
+	return Ltrim(Rtrim(s));
 }
 
-vector<string> split(const string &str, char delimiter)
+vector<string> Split(const string &str, char delimiter)
 {
 	vector<string> internal;
 	stringstream ss(str);
@@ -41,13 +41,13 @@ vector<string> split(const string &str, char delimiter)
 
 	while(getline(ss, tok, delimiter))
 	{
-		internal.push_back(trim(tok));
+		internal.push_back(Trim(tok));
 	}
 
 	return internal;
 }
 
-int net_bytes_to_int(char *buf)
+int NetBytesToInt(char *buf)
 {
 	int a = buf[0] & 0xFF;
 	a |= ((buf[1] << 8) & 0xFF00);
@@ -56,7 +56,7 @@ int net_bytes_to_int(char *buf)
 	return ntohl(a);
 }
 
-short net_bytes_to_short(char *buf)
+short NetBytesToShort(char *buf)
 {
 	int a = buf[0] & 0xFF;
 	a |= ((buf[1] << 8) & 0xFF00);

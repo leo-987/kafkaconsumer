@@ -6,19 +6,19 @@ namespace Util
 	using namespace std;
 
 	// trim from start
-	inline string &ltrim(string &s);
+	inline string &Ltrim(string &s);
 
 	// trim from end
-	inline string &rtrim(string &s);
+	inline string &Rtrim(string &s);
 
 	// trim from both ends
-	inline string &trim(string &s);
+	inline string &Trim(string &s);
 
-	vector<string> split(const string &str, char delimiter);
+	vector<string> Split(const string &str, char delimiter);
 
-	int net_bytes_to_int(char *buf);
+	int NetBytesToInt(char *buf);
 
-	short net_bytes_to_short(char *buf);
+	short NetBytesToShort(char *buf);
 
 	string HostnameToIp(const string &hostname);
 } // end of namespace
