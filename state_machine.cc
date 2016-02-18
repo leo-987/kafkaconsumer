@@ -5,7 +5,7 @@
 #include "request.h"
 #include "response.h"
 
-bool StateMachine::run_;
+bool StateMachine::run_ = false;
 
 void StateMachine::SignalHandler(int signal)
 {
@@ -17,19 +17,20 @@ StateMachine::StateMachine(Network *network, std::map<std::string, Node*> &nodes
 	: nodes_(nodes)
 {
 	network_ = network;
-	event_ = Event::STARTUP;
-	current_state_ = &StateMachine::DiscoverCoordinator;
-	run_ = true;
 }
 
 int StateMachine::Init()
 {
-	//signal(SIGINT, StateMachine::SignalHandler);
+	signal(SIGINT, StateMachine::SignalHandler);
 	return 0;
 }
 
 int StateMachine::Start()
 {
+	event_ = Event::STARTUP;
+	current_state_ = &StateMachine::DiscoverCoordinator;
+	run_ = true;
+
 	std::cout << "State in Start" << std::endl;
 
 	while (run_)
@@ -43,6 +44,8 @@ int StateMachine::Start()
 
 int StateMachine::Stop()
 {
+	// set state
+	
 	return 0;
 }
 
@@ -66,15 +69,16 @@ int StateMachine::DiscoverCoordinator(Event &event)
 	PushRequest(node, group_request);
 
 	Response *response;
-	short api_key = PopResponse(node, &response);
+	PopResponse(node, &response);
 
-	if (api_key != ApiKey::GroupCoordinatorRequest)
+	if (response->api_key_ != ApiKey::GroupCoordinatorRequest)
 	{
 		return -1;
 	}
 
 	GroupCoordinatorResponse *coor_response = dynamic_cast<GroupCoordinatorResponse*>(response);
 	coor_response->Print();
+	delete coor_response;
 
 	// next state
 	current_state_ = &StateMachine::PartOfGroup;
@@ -100,15 +104,16 @@ int StateMachine::PartOfGroup(Event &event)
 			PushRequest(node, join_request);
 
 			Response *response;
-			short api_key = PopResponse(node, &response);
+			PopResponse(node, &response);
 
-			if (api_key != 11)
+			if (response->api_key_ != ApiKey::JoinGroupRequest)
 			{
 				return -1;
 			}
 
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
 			join_response->Print();
+			delete join_response;
 
 			// next state
 			event = Event::HEARTBEAT;
@@ -137,14 +142,13 @@ int StateMachine::PushRequest(Node *node, Request *request)
 	return 0;
 }
 
-short StateMachine::PopResponse(Node *node, Response **response)
+int StateMachine::PopResponse(Node *node, Response **response)
 {
 	int fd = node->fd_;
 
 	// -1: wait forever
-	Response *r = network_->receive_queues_[fd].Pop(-1);
-	*response = r;
+	*response = network_->receive_queues_[fd].Pop(-1);
 
-	return r->api_key_;
+	return 0;
 }
 

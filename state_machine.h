@@ -31,7 +31,7 @@ public:
 	Network *network_;
 	std::map<std::string, Node*> &nodes_;
 	int PushRequest(Node *node, Request *request);
-	short PopResponse(Node *node, Response **response);
+	int PopResponse(Node *node, Response **response);
 
 private:
 	Event event_;

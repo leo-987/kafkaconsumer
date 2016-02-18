@@ -17,7 +17,7 @@ public:
 
 	int Init();
 	int Start();
-
+	int Stop();
 
 	//int PushRequest(Node *node, Request *request);
 	//short PopResponse(Node *node, Response **response);

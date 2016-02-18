@@ -24,7 +24,7 @@ public:
 	std::vector<pthread_t> tids_;
 
 	std::vector<struct ev_loop *> loops_;
-	std::vector<int> fds_;
+	std::vector<int> socket_fds_;
 	std::vector<ev_io> watchers_;
 	std::vector<ev_async> async_watchers_;
 

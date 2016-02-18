@@ -101,8 +101,9 @@ static int ReceiveResponse(int fd, Network *network)
 		return -1;
 	}
 
-	// pop
+	// pop and delete request
 	pthread_mutex_lock(&network->queue_mutex_);
+	delete in_flight_requests.front();
 	in_flight_requests.pop_front();
 	pthread_mutex_unlock(&network->queue_mutex_);
 
@@ -203,7 +204,8 @@ static int ReceiveResponse(int fd, Network *network)
 
 static int SendRequest(int fd, Network *network, Request *request)
 {
-	char *packet = new char[request->total_size_ + 4];
+	int packet_size = request->total_size_ + 4;
+	char *packet = new char[packet_size];
 	char *p = packet;
 
 	// total size
@@ -329,13 +331,15 @@ static int SendRequest(int fd, Network *network, Request *request)
 		}
 	}
 
-	int n = write(fd, packet, request->total_size_ + 4);
+	int n = write(fd, packet, packet_size);
 	std::cout << "Send " << n << " bytes" << std::endl;
 
 	// push request to in flight request queue
 	pthread_mutex_lock(&network->queue_mutex_);
 	network->in_flight_requests_[fd].push_back(request);
 	pthread_mutex_unlock(&network->queue_mutex_);
+
+	delete[] packet;
 
 	return 0;
 }
@@ -350,17 +354,24 @@ static void* EventLoopThread(void *arg)
 //-----------------------------------Network
 Network::Network()
 {
-	queue_mutex_ = PTHREAD_MUTEX_INITIALIZER;
-	//loop_ = NULL;
+	pthread_mutex_init(&queue_mutex_, NULL);
 }
 
 Network::~Network()
 {
-	for (unsigned int i = 0; i < fds_.size(); i++)
+	for (unsigned int i = 0; i < socket_fds_.size(); i++)
 	{
-	    close(fds_[i]);
+	    close(socket_fds_[i]);
     	ev_loop_destroy(loops_[i]);
 	}
+
+	for (auto it = client_->nodes_.begin(); it != client_->nodes_.end(); ++it)
+	{
+		// delete node
+		delete it->second;
+	}
+
+	pthread_mutex_destroy(&queue_mutex_);
 }
 
 int Network::Init(KafkaClient *client, const std::string &broker_list)
@@ -375,27 +386,29 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
-		fds_.push_back(fd);
+		socket_fds_.push_back(fd);
 
 		Node *node = new Node(fd, -1, host, port);
 		client->nodes_.insert({host, node});
 	}
 
-	loops_.resize(fds_.size());
+	//loops_.resize(socket_fds_.size());
 
-	for (unsigned int i = 0; i < loops_.size(); i++)
+	for (unsigned int i = 0; i < socket_fds_.size(); i++)
 	{
-		loops_[i] = ev_loop_new(EVFLAG_AUTO);
+		//loops_[i] = ev_loop_new(EVFLAG_AUTO);
+		struct ev_loop *loop = ev_loop_new(EVFLAG_AUTO);
+		loops_.push_back(loop);
 
 		// associate KafkaClient with the loop
 		ev_set_userdata(loops_[i], this);
 	}
 
-	for (unsigned int i = 0; i < fds_.size(); i++)
+	for (unsigned int i = 0; i < socket_fds_.size(); i++)
 	{
 		// io watcher
 		ev_io watcher;
-    	ev_io_init(&watcher, ReadWriteReadyCallback, fds_[i], EV_READ | EV_WRITE);
+    	ev_io_init(&watcher, ReadWriteReadyCallback, socket_fds_[i], EV_READ | EV_WRITE);
 		watchers_.push_back(watcher);
 	
 		// async wathcer
@@ -437,9 +450,11 @@ int Network::Stop()
 			ev_async_send(loops_[i], &async_watchers_[i]);
 	
 		pthread_join(tids_[i], NULL);
+
+		std::cout << "Network thread " << tids_[i] << " exit!" << std::endl;
 	}
 
-	std::cout << "Network thread exit!" << std::endl;
+	std::vector<pthread_t>().swap(tids_);
 
 	return 0;
 }
