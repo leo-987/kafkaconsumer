@@ -58,7 +58,7 @@ public:
 
 	short version_;
 	std::vector<std::string> subscription_;
-	std::string user_data_;		// bytes array
+	std::string user_data_;		// bytes
 };
 
 class GroupProtocol {
@@ -87,6 +87,17 @@ public:
 	std::vector<GroupProtocol> group_protocols_;
 };
 
+//------------------------------MetadataRequest
+class MetadataRequest: public Request {
+public:
+	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names);
+
+	virtual int Size();
+	virtual void Print();
+
+	std::vector<std::string> topic_names_;
+};
+
 //------------------------------SyncGroupRequest
 #if 0
 class MemberAssignment {
@@ -95,7 +106,7 @@ public:
 
 	short version_;
 	std::vector<PartitionAssignment> partition_assignment_;
-	std::string user_data_;		// bytes array
+	std::string user_data_;		// bytes
 };
 
 class GroupAssignment {
@@ -103,7 +114,7 @@ public:
 	GroupAssignment();
 
 	std::string member_id_;
-	MemberAssignment member_assignment_;	// bytes array
+	MemberAssignment member_assignment_;	// bytes
 };
 
 class SyncGroupRequest: public Request {

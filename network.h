@@ -21,12 +21,11 @@ public:
 
 	KafkaClient *client_;
 
-	std::vector<pthread_t> tids_;
-
-	std::vector<struct ev_loop *> loops_;
+	pthread_t event_loop_tid_;
+	struct ev_loop *event_loop_;
 	std::vector<int> socket_fds_;
-	std::vector<ev_io> watchers_;
-	std::vector<ev_async> async_watchers_;
+	std::vector<ev_io> io_watchers_;
+	ev_async async_watcher_;
 
 	pthread_mutex_t queue_mutex_;
 

@@ -115,6 +115,10 @@ int StateMachine::PartOfGroup(Event &event)
 			join_response->Print();
 			delete join_response;
 
+			MetadataRequest *metadata_request = new MetadataRequest(2, topic);
+			metadata_request->Print();
+			PushRequest(node, metadata_request);
+
 			// next state
 			event = Event::HEARTBEAT;
 

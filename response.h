@@ -60,7 +60,7 @@ public:
 	std::string group_protocol_;
 	std::string leader_id_;
 	std::string member_id_;
-	std::vector<Member> members_;
+	std::vector<Member> members_;	// array
 };
 
 #endif

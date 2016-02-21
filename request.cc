@@ -28,16 +28,16 @@ void Request::Print()
 
 //------------------------------GroupCoordinatorRequest
 GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::string &group_id)
-	: Request(10, correlation_id)
+	: Request(ApiKey::GroupCoordinatorRequest, correlation_id)
 {
 	group_id_ = group_id;
-	total_size_ = Request::Size() +	// head
-				  Size();			// body
+	total_size_ = Size();
 }
 
 int GroupCoordinatorRequest::Size()
 {
-	return 2 + group_id_.length();
+	return Request::Size() +		// head
+		   2 + group_id_.length();	// body
 }
 
 void GroupCoordinatorRequest::Print()
@@ -82,7 +82,7 @@ int GroupProtocol::Size()
 JoinGroupRequest::JoinGroupRequest(int correlation_id,
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics)
-	: Request(11, correlation_id)
+	: Request(ApiKey::JoinGroupRequest, correlation_id)
 {
 	group_id_ = group_id;
 	session_timeout_ = 30000;
@@ -98,9 +98,8 @@ JoinGroupRequest::JoinGroupRequest(int correlation_id,
 
 int JoinGroupRequest::Size()
 {
-	int size = 0;
-	size += Request::Size() +	// head
-			2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
+	int size = Request::Size();		// head
+	size +=	2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
 			4 /* array */;
 
 	for (unsigned int i = 0; i < group_protocols_.size(); i++)
@@ -130,6 +129,36 @@ void JoinGroupRequest::Print()
 	std::cout << "--------------------------" << std::endl;
 }
 
+//------------------------------MetadataRequest
+MetadataRequest::MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names)
+	: Request(ApiKey::MetadataRequest, correlation_id)
+{
+	topic_names_ = topic_names;
+	total_size_ = Size();
+}
+
+int MetadataRequest::Size()
+{
+	int size = Request::Size();
+	size += 4;
+	for (unsigned int i = 0; i < topic_names_.size(); i++)
+	{
+		size += 2 + topic_names_[i].length();
+	}
+
+	return size;
+}
+
+void MetadataRequest::Print()
+{
+	std::cout << "-----MetadataRequest-----" << std::endl;
+	Request::Print();
+	for (unsigned int i = 0; i < topic_names_.size(); i++)
+	{
+		std::cout << "topic name = " << topic_names_[i] << std::endl;
+	}
+	std::cout << "-------------------------" << std::endl;
+}
 //------------------------------SyncGroupRequest
 #if 0
 MemberAssignment::MemberAssignment(const std::vector<std::string> &topics)

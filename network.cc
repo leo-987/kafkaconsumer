@@ -11,11 +11,12 @@
 #include "net_util.h"
 
 
-static int ReceiveResponse(int fd, Network *network);
-static int SendRequest(int fd, Network *network, Request *request);
+static int ReceiveResponse(int fd, Network *network, Response **response);
+static int SendRequest(int fd, Request *request);
 
 static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revents)
 {
+	// revents == EV_ASYNC
 	ev_break(loop, EVBREAK_ALL);
 }
 
@@ -47,7 +48,8 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 	if (events & EV_READ)
 	{
 		//std::cout << "read ready" << std::endl;
-		int ret = ReceiveResponse(w->fd, network);
+		Response *response;
+		int ret = ReceiveResponse(w->fd, network, &response);
 		if (ret <= 0)
 		{
 			if (ret == 0)
@@ -61,13 +63,32 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 				std::cout << "error occurred" << std::endl;
 			}
 		}
+
+		// pop and delete request
+		std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(w->fd);
+		pthread_mutex_lock(&network->queue_mutex_);
+		delete in_flight_requests.front();
+		in_flight_requests.pop_front();
+		pthread_mutex_unlock(&network->queue_mutex_);
+
+		network->receive_queues_[w->fd].Push(response);
 	}
 	if (events & EV_WRITE)
 	{
-		// Get request from network 
-		Request *request = network->send_queues_[w->fd].Pop(100);
-		if (request != NULL)
-			SendRequest(w->fd, network, request);
+		Request *request = network->send_queues_[w->fd].Front(100);
+		if (request == NULL)
+			return;
+		
+		int ret = SendRequest(w->fd, request);
+		if (ret < 0)
+			return;	// If failed, do not pop this request
+
+		network->send_queues_[w->fd].Pop(-1);
+
+		// push request to in flight request queue
+		pthread_mutex_lock(&network->queue_mutex_);
+		network->in_flight_requests_[w->fd].push_back(request);
+		pthread_mutex_unlock(&network->queue_mutex_);
 
 		//ev_io_stop(loop, w);
 		//ev_io_set(w, w->fd, EV_READ);
@@ -76,7 +97,7 @@ static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
 #endif
 }
 
-static int ReceiveResponse(int fd, Network *network)
+static int ReceiveResponse(int fd, Network *network, Response **res)
 {
 	char buf[1024] = {0};
 	int nread = read(fd, buf, 1024);
@@ -100,12 +121,6 @@ static int ReceiveResponse(int fd, Network *network)
 		// not match
 		return -1;
 	}
-
-	// pop and delete request
-	pthread_mutex_lock(&network->queue_mutex_);
-	delete in_flight_requests.front();
-	in_flight_requests.pop_front();
-	pthread_mutex_unlock(&network->queue_mutex_);
 
 	switch(api_key)
 	{
@@ -132,7 +147,7 @@ static int ReceiveResponse(int fd, Network *network)
 				break;
 			}
 
-			network->receive_queues_[fd].Push(response);
+			*res = response;
 
 			break;
 		}
@@ -194,7 +209,8 @@ static int ReceiveResponse(int fd, Network *network)
 				break;
 			}
 
-			network->receive_queues_[fd].Push(response);
+			*res = response;
+
 			break;
 		}
 	}
@@ -202,10 +218,10 @@ static int ReceiveResponse(int fd, Network *network)
 	return nread;
 }
 
-static int SendRequest(int fd, Network *network, Request *request)
+static int SendRequest(int fd, Request *request)
 {
 	int packet_size = request->total_size_ + 4;
-	char *packet = new char[packet_size];
+	char packet[1024];
 	char *p = packet;
 
 	// total size
@@ -237,6 +253,27 @@ static int SendRequest(int fd, Network *network, Request *request)
 
 	switch(request->api_key_)
 	{
+		case ApiKey::MetadataRequest:
+		{
+			MetadataRequest *r = dynamic_cast<MetadataRequest*>(request);
+
+			// topics array
+			int topic_names_size = htonl(r->topic_names_.size());
+			memcpy(p, &topic_names_size, 4);
+			p += 4;
+
+			for (unsigned int i = 0; i < r->topic_names_.size(); i++)
+			{
+				std::string &topic = r->topic_names_[i];
+				short topic_size = htons((short)topic.length());
+				memcpy(p, &topic_size, 2);
+				p += 2;
+				memcpy(p, topic.c_str(), topic.length());
+				p += topic.length();
+			}
+
+			break;
+		}
 		case ApiKey::GroupCoordinatorRequest:
 		{
 			GroupCoordinatorRequest *r = dynamic_cast<GroupCoordinatorRequest*>(request);
@@ -311,7 +348,7 @@ static int SendRequest(int fd, Network *network, Request *request)
 
 				for (unsigned int j = 0; j < gp.protocol_metadata_.subscription_.size(); j++)
 				{
-					std::string topic = gp.protocol_metadata_.subscription_[j];
+					std::string &topic = gp.protocol_metadata_.subscription_[j];
 					short topic_size = htons((short)topic.length());
 					memcpy(p, &topic_size, 2);
 					p += 2;
@@ -331,15 +368,21 @@ static int SendRequest(int fd, Network *network, Request *request)
 		}
 	}
 
-	int n = write(fd, packet, packet_size);
-	std::cout << "Send " << n << " bytes" << std::endl;
+	int nwrite = write(fd, packet, packet_size);
 
-	// push request to in flight request queue
-	pthread_mutex_lock(&network->queue_mutex_);
-	network->in_flight_requests_[fd].push_back(request);
-	pthread_mutex_unlock(&network->queue_mutex_);
-
-	delete[] packet;
+	std::cout << "Send " << nwrite << " bytes" << std::endl;
+	if (nwrite < 0)
+	{
+		if (errno == EWOULDBLOCK)
+		{
+			return 0;
+		}
+		else
+		{
+			std::cerr << "An error has occured while writing to the server." << std::endl;
+			return -1;
+		}
+	}
 
 	return 0;
 }
@@ -360,16 +403,13 @@ Network::Network()
 Network::~Network()
 {
 	for (unsigned int i = 0; i < socket_fds_.size(); i++)
-	{
 	    close(socket_fds_[i]);
-    	ev_loop_destroy(loops_[i]);
-	}
 
+	ev_loop_destroy(event_loop_);
+
+	// delete nodes
 	for (auto it = client_->nodes_.begin(); it != client_->nodes_.end(); ++it)
-	{
-		// delete node
 		delete it->second;
-	}
 
 	pthread_mutex_destroy(&queue_mutex_);
 }
@@ -378,6 +418,7 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 {
 	client_ = client;
 
+	// create nodes
 	std::vector<std::string> brokers = Util::Split(broker_list, ',');
 	for (unsigned int i = 0; i < brokers.size(); i++)
 	{
@@ -392,30 +433,20 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 		client->nodes_.insert({host, node});
 	}
 
-	//loops_.resize(socket_fds_.size());
+	// create loop
+	event_loop_ = ev_loop_new(EVFLAG_AUTO);
+	ev_set_userdata(event_loop_, this);
 
+	// io watcher
 	for (unsigned int i = 0; i < socket_fds_.size(); i++)
 	{
-		//loops_[i] = ev_loop_new(EVFLAG_AUTO);
-		struct ev_loop *loop = ev_loop_new(EVFLAG_AUTO);
-		loops_.push_back(loop);
-
-		// associate KafkaClient with the loop
-		ev_set_userdata(loops_[i], this);
-	}
-
-	for (unsigned int i = 0; i < socket_fds_.size(); i++)
-	{
-		// io watcher
 		ev_io watcher;
     	ev_io_init(&watcher, ReadWriteReadyCallback, socket_fds_[i], EV_READ | EV_WRITE);
-		watchers_.push_back(watcher);
-	
-		// async wathcer
-		ev_async async_watcher;
-		ev_async_init(&async_watcher, EventLoopAsyncCallback);
-		async_watchers_.push_back(async_watcher);
+		io_watchers_.push_back(watcher);
 	}
+
+	// async watcher
+	ev_async_init(&async_watcher_, EventLoopAsyncCallback);
 
 	std::cout << "Network init OK!" << std::endl;
 
@@ -424,37 +455,29 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 
 int Network::Start()
 {
-	for (unsigned int i = 0; i < loops_.size(); i++)
-	{
-		// start watchers
-		ev_io_start(loops_[i], &watchers_[i]);
-		ev_async_start(loops_[i], &async_watchers_[i]);
+	// start io watcher
+	for (unsigned int i = 0; i < io_watchers_.size(); i++)
+		ev_io_start(event_loop_, &io_watchers_[i]);
 
-		// one loop per thread
-		pthread_t tid;
-		pthread_create(&tid, NULL, EventLoopThread, loops_[i]);
-		tids_.push_back(tid);
-	}
+	// start async watcher
+	ev_async_start(event_loop_, &async_watcher_);
 
-	std::cout << "Net thread created!" << std::endl;
+	pthread_create(&event_loop_tid_, NULL, EventLoopThread, event_loop_);
+	std::cout << "Event loop thread created!" << std::endl;
+
 	return 0;
 }
 
 int Network::Stop()
 {
-	for (unsigned int i = 0; i < loops_.size(); i++)
-	{
-		ev_io_stop(loops_[i], &watchers_[i]);
+	for (unsigned int i = 0; i < io_watchers_.size(); i++)
+		ev_io_stop(event_loop_, &io_watchers_[i]);
 
-		if (ev_async_pending(&async_watchers_[i]) == false)
-			ev_async_send(loops_[i], &async_watchers_[i]);
-	
-		pthread_join(tids_[i], NULL);
+	if (ev_async_pending(&async_watcher_) == false)
+		ev_async_send(event_loop_, &async_watcher_);
 
-		std::cout << "Network thread " << tids_[i] << " exit!" << std::endl;
-	}
-
-	std::vector<pthread_t>().swap(tids_);
+	pthread_join(event_loop_tid_, NULL);
+	std::cout << "Network thread " << event_loop_tid_ << " exit!" << std::endl;
 
 	return 0;
 }
