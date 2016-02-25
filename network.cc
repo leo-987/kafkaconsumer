@@ -10,215 +10,156 @@
 #include "response.h"
 #include "net_util.h"
 
-
-static int ReceiveResponse(int fd, Network *network, Response **response);
-static int SendRequest(int fd, Request *request);
-
-static void EventLoopAsyncCallback(struct ev_loop *loop, ev_async *w, int revents)
+Network::Network()
 {
-	// revents == EV_ASYNC
-	ev_break(loop, EVBREAK_ALL);
 }
 
-static short GetApiKeyFromResponse(std::deque<Request *> &in_flight_requests, int correlation_id)
+Network::~Network()
 {
-	if (in_flight_requests.empty())
-	{
-		std::cout << "in_flight_requests queue is empty" << std::endl;
-		return -1;
-	}
+	for (auto it = fds_.begin(); it != fds_.end(); ++it)
+		close(*it);
 
-	Request *in_flight_request = in_flight_requests.front();
-	if (in_flight_request->correlation_id_ != correlation_id)
-	{
-		std::cout << "The correlation_id are not equal" << std::endl;
-		return -1;
-	}
+	// delete nodes
+	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
+		delete it->second;
 
-	return in_flight_request->api_key_;
+	pthread_mutex_destroy(&queue_mutex_);
 }
 
-static void ReadWriteReadyCallback(struct ev_loop *loop, ev_io *w, int events)
+int Network::Init(KafkaClient *client, const std::string &broker_list)
 {
-	Network *network = (Network *)ev_userdata(loop);
+	pthread_mutex_init(&queue_mutex_, NULL);
 
-	//std::cout << "aaaaaaaaaa" << std::endl;
-	//sleep(1);
-#if 1
-	if (events & EV_READ)
+	client_ = client;
+
+	// create nodes
+	std::vector<std::string> brokers = Util::Split(broker_list, ',');
+	for (unsigned int i = 0; i < brokers.size(); i++)
 	{
-		//std::cout << "read ready" << std::endl;
-		Response *response;
-		int ret = ReceiveResponse(w->fd, network, &response);
-		if (ret <= 0)
-		{
-			if (ret == 0)
-			{
-				std::cout << "connection has been closed" << std::endl;
-				ev_io_stop(loop, w);
-				close(w->fd);
-			}
-			else if (errno != EAGAIN)
-			{
-				std::cout << "error occurred" << std::endl;
-			}
-		}
-
-		// pop and delete request
-		std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(w->fd);
-		pthread_mutex_lock(&network->queue_mutex_);
-		delete in_flight_requests.front();
-		in_flight_requests.pop_front();
-		pthread_mutex_unlock(&network->queue_mutex_);
-
-		network->receive_queues_[w->fd].Push(response);
+		std::vector<std::string> host_port = Util::Split(brokers[i], ':');
+		std::string host = host_port[0];
+		std::string ip = Util::HostnameToIp(host);
+		int port = std::stoi(host_port[1]);
+		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
+		fds_.push_back(fd);
+		Node *node = new Node(fd, -1, host, port);
+		nodes_.insert({host, node});
 	}
-	if (events & EV_WRITE)
-	{
-		Request *request = network->send_queues_[w->fd].Front(100);
-		if (request == NULL)
-			return;
-		
-		int ret = SendRequest(w->fd, request);
-		if (ret < 0)
-			return;	// If failed, do not pop this request
 
-		network->send_queues_[w->fd].Pop(-1);
+	//state_machine_ = new StateMachine(network_, nodes_);
+	//state_machine_->Init();
 
-		// push request to in flight request queue
-		pthread_mutex_lock(&network->queue_mutex_);
-		network->in_flight_requests_[w->fd].push_back(request);
-		pthread_mutex_unlock(&network->queue_mutex_);
+	std::cout << "Network init OK!" << std::endl;
 
-		//ev_io_stop(loop, w);
-		//ev_io_set(w, w->fd, EV_READ);
-		//ev_io_start(loop, w);
-	}
-#endif
+	return 0;
 }
 
-static int ReceiveResponse(int fd, Network *network, Response **res)
+int Network::Start()
+{
+	//while(1)
+	{
+		std::vector<std::string> topics({"test"});
+		MetadataRequest *metadata_request = new MetadataRequest(2, topics);
+		GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
+		JoinGroupRequest *join_request = new JoinGroupRequest(0, "group", "", topics);
+
+		// Random select a node
+		auto it = nodes_.begin();
+		std::advance(it, rand() % nodes_.size());
+		Node *node = it->second;
+
+		node = nodes_["w-w1902.add.nbt.qihoo.net"];
+
+		SendRequestHandler(node, join_request);
+		ReceiveResponseHandler(node);
+	}
+
+	return 0;
+}
+
+int Network::Stop()
+{
+	return 0;
+}
+
+int Network::ReceiveResponseHandler(Node *node)
+{
+	Response *response;
+
+	int ret = DoReceive(node->fd_, &response);
+	if (ret == 0)
+	{
+		response->Print();
+		delete response;
+
+		delete last_request_;
+	}
+
+	return 0;
+}
+
+int Network::SendRequestHandler(Node *node, Request *request)
+{
+	DoSend(node->fd_, request);
+
+	last_request_ = request;
+
+	return 0;
+}
+
+int Network::DoReceive(int fd, Response **res)
 {
 	char buf[1024] = {0};
 	int nread = read(fd, buf, 1024);
 	std::cout << "nread = " << nread << std::endl;
 	if (nread <= 0)
 	{
-		return nread;
+		if (nread == 0)
+			std::cout << "connection has been closed" << std::endl;
+		else
+			std::cout << "error occurred" << std::endl;
+
+		close(fd);
+		return -1;
 	}
 
-	char *p = buf;
-	int response_size = Util::NetBytesToInt(p);
-	p += 4;
-	int correlation_id = Util::NetBytesToInt(p); 
-	p += 4;
-
-	std::deque<Request *> &in_flight_requests = network->in_flight_requests_.at(fd);
-	int api_key = GetApiKeyFromResponse(in_flight_requests, correlation_id);
-
+	//int response_size = Util::NetBytesToInt(buf);
+	int correlation_id = Util::NetBytesToInt(buf + 4); 
+	int api_key = GetApiKeyFromResponse(last_request_, correlation_id);
 	if (api_key < 0)
 	{
 		// not match
 		return -1;
 	}
 
+	char *p = buf;
 	switch(api_key)
 	{
+		case ApiKey::MetadataRequest:
+		{
+			MetadataResponse *response = new MetadataResponse(&p);
+			*res = response;
+			break;
+		}
 		case ApiKey::GroupCoordinatorRequest:
 		{
-			short error_code = Util::NetBytesToShort(p);
-			p += 2;
-			int coordinator_id = Util::NetBytesToInt(p); 
-			p += 4;
-			short host_size = Util::NetBytesToShort(p);
-			p += 2;
-			std::string coordinator_host(p, host_size);
-			p += host_size;
-			int coordinator_port = Util::NetBytesToInt(p); 
 
-			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(
-								api_key, correlation_id, error_code, coordinator_id,
-								coordinator_host, coordinator_port);
-
-			if (response_size != response->total_size_)
-			{
-				std::cerr << "Size are not equal..." << std::endl;
-				delete response;
-				break;
-			}
-
+			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(&p);
 			*res = response;
-
 			break;
 		}
 		case ApiKey::JoinGroupRequest:
 		{
-			short error_code = Util::NetBytesToShort(p);
-			p += 2;
-			int generation_id = Util::NetBytesToInt(p);
-			p += 4;
-
-			// GroupProtocol
-			short group_protocol_size = Util::NetBytesToShort(p);
-			p += 2;
-			std::string group_protocol(p, group_protocol_size);
-			p += group_protocol_size;
-
-			// LeaderId
-			short leader_id_size = Util::NetBytesToShort(p);
-			p += 2;
-			std::string leader_id(p, leader_id_size);
-			p += leader_id_size;
-
-			// MemberId
-			short member_id_size = Util::NetBytesToShort(p);
-			p += 2;
-			std::string member_id(p, member_id_size);
-			p += member_id_size;
-
-			// Members
-			int members_size = Util::NetBytesToInt(p);
-			p += 4;
-
-			std::vector<Member> members;
-			for (int i = 0; i < members_size; i++)
-			{
-				// MemberId
-				short member_id_size = Util::NetBytesToShort(p);
-				p += 2;
-				std::string member_id(p, member_id_size);
-				p += member_id_size;
-
-				// MemberMetadata
-				int member_metadata_size = Util::NetBytesToInt(p);
-				p += 4;
-				std::string member_metadata(p, member_metadata_size);
-				p += member_metadata_size;
-
-				Member member(member_id, member_metadata);
-				members.push_back(member);
-			}
-
-			JoinGroupResponse *response = new JoinGroupResponse(api_key, correlation_id,
-					error_code, generation_id, group_protocol, leader_id, member_id, members);
-
-			if (response_size != response->total_size_)
-			{
-				std::cerr << "Size are not equal..." << std::endl;
-				delete response;
-				break;
-			}
-
+			JoinGroupResponse *response = new JoinGroupResponse(&p);
 			*res = response;
-
 			break;
 		}
 	}
 
-	return nread;
+	return 0;
 }
 
-static int SendRequest(int fd, Request *request)
+int Network::DoSend(int fd, Request *request)
 {
 	int packet_size = request->total_size_ + 4;
 	char packet[1024];
@@ -285,7 +226,6 @@ static int SendRequest(int fd, Request *request)
 			memcpy(p, r->group_id_.c_str(), r->group_id_.length());
 			break;
 		}
-
 		case ApiKey::JoinGroupRequest:
 		{
 			JoinGroupRequest *r = dynamic_cast<JoinGroupRequest*>(request);
@@ -369,7 +309,6 @@ static int SendRequest(int fd, Request *request)
 	}
 
 	int nwrite = write(fd, packet, packet_size);
-
 	std::cout << "Send " << nwrite << " bytes" << std::endl;
 	if (nwrite < 0)
 	{
@@ -387,99 +326,14 @@ static int SendRequest(int fd, Request *request)
 	return 0;
 }
 
-static void* EventLoopThread(void *arg)
+short Network::GetApiKeyFromResponse(Request *last_request, int correlation_id)
 {
-	struct ev_loop *loop = (struct ev_loop *)arg;
-    ev_run(loop, 0);
-	return NULL;
-}
-
-//-----------------------------------Network
-Network::Network()
-{
-	pthread_mutex_init(&queue_mutex_, NULL);
-}
-
-Network::~Network()
-{
-	for (unsigned int i = 0; i < socket_fds_.size(); i++)
-	    close(socket_fds_[i]);
-
-	ev_loop_destroy(event_loop_);
-
-	// delete nodes
-	for (auto it = client_->nodes_.begin(); it != client_->nodes_.end(); ++it)
-		delete it->second;
-
-	pthread_mutex_destroy(&queue_mutex_);
-}
-
-int Network::Init(KafkaClient *client, const std::string &broker_list)
-{
-	client_ = client;
-
-	// create nodes
-	std::vector<std::string> brokers = Util::Split(broker_list, ',');
-	for (unsigned int i = 0; i < brokers.size(); i++)
+	if (last_request->correlation_id_ != correlation_id)
 	{
-		std::vector<std::string> host_port = Util::Split(brokers[i], ':');
-		std::string host = host_port[0];
-		std::string ip = Util::HostnameToIp(host);
-		int port = std::stoi(host_port[1]);
-		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
-		socket_fds_.push_back(fd);
-
-		Node *node = new Node(fd, -1, host, port);
-		client->nodes_.insert({host, node});
+		std::cout << "The correlation_id are not equal" << std::endl;
+		return -1;
 	}
 
-	// create loop
-	event_loop_ = ev_loop_new(EVFLAG_AUTO);
-	ev_set_userdata(event_loop_, this);
-
-	// io watcher
-	for (unsigned int i = 0; i < socket_fds_.size(); i++)
-	{
-		ev_io watcher;
-    	ev_io_init(&watcher, ReadWriteReadyCallback, socket_fds_[i], EV_READ | EV_WRITE);
-		io_watchers_.push_back(watcher);
-	}
-
-	// async watcher
-	ev_async_init(&async_watcher_, EventLoopAsyncCallback);
-
-	std::cout << "Network init OK!" << std::endl;
-
-	return 0;
+	return last_request->api_key_;
 }
-
-int Network::Start()
-{
-	// start io watcher
-	for (unsigned int i = 0; i < io_watchers_.size(); i++)
-		ev_io_start(event_loop_, &io_watchers_[i]);
-
-	// start async watcher
-	ev_async_start(event_loop_, &async_watcher_);
-
-	pthread_create(&event_loop_tid_, NULL, EventLoopThread, event_loop_);
-	std::cout << "Event loop thread created!" << std::endl;
-
-	return 0;
-}
-
-int Network::Stop()
-{
-	for (unsigned int i = 0; i < io_watchers_.size(); i++)
-		ev_io_stop(event_loop_, &io_watchers_[i]);
-
-	if (ev_async_pending(&async_watcher_) == false)
-		ev_async_send(event_loop_, &async_watcher_);
-
-	pthread_join(event_loop_tid_, NULL);
-	std::cout << "Network thread " << event_loop_tid_ << " exit!" << std::endl;
-
-	return 0;
-}
-
 

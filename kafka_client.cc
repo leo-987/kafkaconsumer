@@ -3,29 +3,36 @@
 
 #include "kafka_client.h"
 
+bool KafkaClient::run_;
+
+void KafkaClient::SignalHandler(int signal)
+{
+	std::cout << "Interrupt!" << std::endl;
+	run_ = false;
+}
 
 KafkaClient::KafkaClient()
 {
-	srand(time(NULL));
 }
 
 KafkaClient::~KafkaClient()
 {
-	delete state_machine_;
-	delete network_;
+	//delete state_machine_;
+	//delete network_;
 }
 
 int KafkaClient::Init()
 {
+	srand(time(NULL));
+
 	std::string broker_list = "w-w1901.add.nbt.qihoo.net:9092,\
 							   w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
 
 	network_ = new Network();
 	network_->Init(this, broker_list);
 
-	state_machine_ = new StateMachine(network_, nodes_);
-	state_machine_->Init();
-
+	//signal(SIGINT, KafkaClient::SignalHandler);
+	
 	std::cout << "KafkaClient init OK!" << std::endl;
 
 	return 0;
@@ -34,37 +41,15 @@ int KafkaClient::Init()
 int KafkaClient::Start()
 {
 	network_->Start();
-	state_machine_->Start();	// main loop
-
-	this->Stop();
-
 	return 0;
 }
 
 int KafkaClient::Stop()
 {
-	state_machine_->Stop();
+	//state_machine_->Stop();
 	network_->Stop();
 
 	return 0;
 }
 
-#if 0
-int KafkaClient::PushRequest(Node *node, Request *request)
-{
-	int fd = node->fd_;
-	network_->send_queues_[fd].Push(request);
-	return 0;
-}
 
-short KafkaClient::PopResponse(Node *node, Response **response)
-{
-	int fd = node->fd_;
-
-	// -1: wait forever
-	Response *r = network_->receive_queues_[fd].Pop(-1);
-	*response = r;
-
-	return r->api_key_;
-}
-#endif

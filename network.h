@@ -7,6 +7,7 @@
 #include "request.h"
 #include "response.h"
 #include "blocking_queue.h"
+#include "node.h"
 
 class KafkaClient;
 
@@ -18,20 +19,28 @@ public:
 	int Init(KafkaClient *client, const std::string &broker_list);
 	int Start();
 	int Stop();
+	int ReceiveResponseHandler(Node *node);
+	int SendRequestHandler(Node *node, Request *request);
+	int DoReceive(int fd, Response **res);
+	int DoSend(int fd, Request *request);
+	short GetApiKeyFromResponse(Request *last_request, int correlation_id);
 
 	KafkaClient *client_;
 
 	pthread_t event_loop_tid_;
-	struct ev_loop *event_loop_;
-	std::vector<int> socket_fds_;
-	std::vector<ev_io> io_watchers_;
-	ev_async async_watcher_;
+	std::vector<int> fds_;
 
 	pthread_mutex_t queue_mutex_;
 
-	std::map<int, std::deque<Request*>> in_flight_requests_;
-	std::map<int, BlockingQueue<Request*>> send_queues_;
-	std::map<int, BlockingQueue<Response*>> receive_queues_;
+	//StateMachine *state_machine_;
+
+	// hostname -> Node
+	std::map<std::string, Node*> nodes_;
+
+	Request *last_request_;
+
+private:
+	bool run_;
 };
 
 #endif

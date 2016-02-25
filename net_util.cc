@@ -67,7 +67,7 @@ int NewTcpServer(int port)
 int NewTcpClient(const char* ip, int port)
 {
 	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	SetNonBlock(fd);
+	//SetNonBlock(fd);
 	sockaddr_in addr;
 	SetAddress(ip, port, &addr);
 	connect(fd, (struct sockaddr*)(&addr), sizeof(addr));

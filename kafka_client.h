@@ -24,10 +24,11 @@ public:
 
 	Network *network_;
 
-	// hostname -> Node
-	std::map<std::string, Node*> nodes_;
 
-	StateMachine *state_machine_;
+
+private:
+	static void SignalHandler(int signal);
+	static bool run_;
 };
 
 #endif

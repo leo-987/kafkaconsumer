@@ -9,8 +9,8 @@ template <typename T>
 class BlockingQueue {
 public:
     void Push(T const& value);
-    T Pop(long timeout);
-    T Front(long timeout);
+    T Pop();
+    T Front();
 
 private:
     std::mutex              mutex_;
@@ -22,44 +22,40 @@ template<typename T>
 void BlockingQueue<T>::Push(T const& value)
 {
 	{
-		std::unique_lock<std::mutex> lock(this->mutex_);
+		std::unique_lock<std::mutex> lock(mutex_);
 		queue_.push_back(value);
 	}
-	this->condition_.notify_one();
+	condition_.notify_one();
 }
 
 template<typename T>
-T BlockingQueue<T>::Pop(long timeout)
+T BlockingQueue<T>::Pop()
 {
-	std::unique_lock<std::mutex> lock(this->mutex_);
-	if (timeout > 0)
-		this->condition_.wait_for(lock, std::chrono::milliseconds(timeout),
-								  [=]{ return !this->queue_.empty(); });
-	else
-		this->condition_.wait(lock, [=]{ return !this->queue_.empty(); });
+	std::unique_lock<std::mutex> lock(mutex_);
 
-	if (this->queue_.empty())
-		return NULL;
+	//if (timeout > 0)
+	//	condition_.wait_for(lock, std::chrono::milliseconds(timeout),
+	//							  [=]{ return !queue_.empty(); });
+	//else
+	//	condition_.wait(lock, [=]{ return !queue_.empty(); });
+	
+	condition_.wait(lock, [=]{ return !queue_.empty(); });
 
-	T obj(std::move(this->queue_.back()));
-	this->queue_.pop_front();
+	T obj(std::move(queue_.front()));
+	queue_.pop_front();
 	return obj;
 }
 
 template<typename T>
-T BlockingQueue<T>::Front(long timeout)
+T BlockingQueue<T>::Front()
 {
-	std::unique_lock<std::mutex> lock(this->mutex_);
-	if (timeout > 0)
-		this->condition_.wait_for(lock, std::chrono::milliseconds(timeout),
-								  [=]{ return !this->queue_.empty(); });
-	else
-		this->condition_.wait(lock, [=]{ return !this->queue_.empty(); });
+	std::unique_lock<std::mutex> lock(mutex_);
 
-	if (this->queue_.empty())
+	condition_.wait(lock, [=]{ return !queue_.empty(); });
+	if (queue_.empty())
 		return NULL;
-
-	return queue_.front();
+	else
+		return queue_.front();
 }
 
 #endif

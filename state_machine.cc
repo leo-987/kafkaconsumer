@@ -5,14 +5,6 @@
 #include "request.h"
 #include "response.h"
 
-bool StateMachine::run_ = false;
-
-void StateMachine::SignalHandler(int signal)
-{
-	std::cout << "Interrupt!" << std::endl;
-	run_ = false;
-}
-
 StateMachine::StateMachine(Network *network, std::map<std::string, Node*> &nodes)
 	: nodes_(nodes)
 {
@@ -21,18 +13,18 @@ StateMachine::StateMachine(Network *network, std::map<std::string, Node*> &nodes
 
 int StateMachine::Init()
 {
-	signal(SIGINT, StateMachine::SignalHandler);
+	//signal(SIGINT, StateMachine::SignalHandler);
 	return 0;
 }
 
 int StateMachine::Start()
 {
-	event_ = Event::STARTUP;
-	current_state_ = &StateMachine::DiscoverCoordinator;
-	run_ = true;
-
 	std::cout << "State in Start" << std::endl;
 
+	event_ = Event::STARTUP;
+	current_state_ = &StateMachine::DiscoverCoordinator;
+
+	run_ = true;
 	while (run_)
 	{
 		(this->*current_state_)(event_);
@@ -44,8 +36,7 @@ int StateMachine::Start()
 
 int StateMachine::Stop()
 {
-	// set state
-	
+	run_ = false;
 	return 0;
 }
 
@@ -71,8 +62,15 @@ int StateMachine::DiscoverCoordinator(Event &event)
 	Response *response;
 	PopResponse(node, &response);
 
-	if (response->api_key_ != ApiKey::GroupCoordinatorRequest)
+	if (response->api_key_ == ApiKey::DumbRequest)
 	{
+		DumbResponse *dumb_response = dynamic_cast<DumbResponse*>(response);
+		delete dumb_response;
+
+		// next state
+		current_state_ = &StateMachine::StoppedConsumption;
+		event = Event::SENDER_STOPPED;
+
 		return -1;
 	}
 
@@ -138,6 +136,25 @@ int StateMachine::PartOfGroup(Event &event)
 	return 0;
 }
 
+int StateMachine::StoppedConsumption(Event &event)
+{
+	std::cout << "State in StoppedConsumption" << std::endl;
+
+	switch(event)
+	{
+		case Event::SENDER_STOPPED:
+		{
+			run_ = 0;
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
+
+	return 0;
+}
 
 int StateMachine::PushRequest(Node *node, Request *request)
 {
@@ -149,10 +166,7 @@ int StateMachine::PushRequest(Node *node, Request *request)
 int StateMachine::PopResponse(Node *node, Response **response)
 {
 	int fd = node->fd_;
-
-	// -1: wait forever
-	*response = network_->receive_queues_[fd].Pop(-1);
-
+	*response = network_->receive_queues_[fd].Pop();
 	return 0;
 }
 
