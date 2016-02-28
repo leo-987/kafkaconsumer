@@ -21,12 +21,12 @@ Response::Response(short api_key, char **buf)
 	(*buf) += 4;
 }
 
-int Response::Size()
+int Response::NumBytes()
 {
 	return 4;
 }
 
-void Response::Print()
+void Response::PrintAll()
 {
 	std::cout << "api key = " << api_key_ << std::endl;
 	std::cout << "total size = " << total_size_ << std::endl;
@@ -42,7 +42,7 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short err
 	coordinator_id_ = coordinator_id;
 	coordinator_host_ = coordinator_host;
 	coordinator_port_ = coordinator_port;
-	total_size_ = Size();
+	total_size_ = NumBytes();
 }
 
 GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
@@ -57,20 +57,25 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	coordinator_host_ = std::string(*buf, host_size);
 	(*buf) += host_size;
 	coordinator_port_ = Util::NetBytesToInt(*buf); 
+
+	if (total_size_ != NumBytes())
+	{
+		throw "NumBytes are not equal";
+	}
 }
 
-int GroupCoordinatorResponse::Size()
+int GroupCoordinatorResponse::NumBytes()
 {
 	int size = 0;
-	size = Response::Size() + 2 /* error_code */ + 4 /* coordinator_id */+
+	size = Response::NumBytes() + 2 /* error_code */ + 4 /* coordinator_id */+
 		   2 /* coordinator_host size */ + coordinator_host_.length() + 4;
 	return size;
 }
 
-void GroupCoordinatorResponse::Print()
+void GroupCoordinatorResponse::PrintAll()
 {
 	std::cout << "-----GroupCoordinatorResponse-----" << std::endl;
-	Response::Print();
+	Response::PrintAll();
 	std::cout << "error code = " << error_code_ << std::endl;
 	std::cout << "coordinator id = " << coordinator_id_ << std::endl;
 	std::cout << "coordinator host = " << coordinator_host_ << std::endl;
@@ -85,13 +90,28 @@ Member::Member(const std::string &member_id, const std::string &member_metadata)
 	member_metadata_ = member_metadata;
 }
 
-int Member::Size()
+Member::Member(char **buf)
+{
+	// MemberId
+	short member_id_size = Util::NetBytesToShort(*buf);
+	(*buf) += 2;
+	member_id_ = std::string(*buf, member_id_size);
+	(*buf) += member_id_size;
+
+	// MemberMetadata
+	int member_metadata_size = Util::NetBytesToInt(*buf);
+	(*buf) += 4;
+	member_metadata_ = std::string(*buf, member_metadata_size);
+	(*buf) += member_metadata_size;
+}
+
+int Member::NumBytes()
 {
 	return 2 + member_id_.length() +
 		   4 /* bytes */ + member_metadata_.length();
 }
 
-void Member::Print()
+void Member::PrintAll()
 {
 	std::cout << "member id = " << member_id_ << std::endl;
 	std::cout << "member metadata = " << member_metadata_ << std::endl;
@@ -109,7 +129,7 @@ JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
 	member_id_ = member_id;
 	members_ = members;
 
-	total_size_ = Size();
+	total_size_ = NumBytes();
 }
 
 JoinGroupResponse::JoinGroupResponse(char **buf)
@@ -143,28 +163,21 @@ JoinGroupResponse::JoinGroupResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < members_size; i++)
 	{
-		// MemberId
-		short member_id_size = Util::NetBytesToShort(*buf);
-		(*buf) += 2;
-		std::string member_id(*buf, member_id_size);
-		(*buf) += member_id_size;
-
-		// MemberMetadata
-		int member_metadata_size = Util::NetBytesToInt(*buf);
-		(*buf) += 4;
-		std::string member_metadata(*buf, member_metadata_size);
-		(*buf) += member_metadata_size;
-
-		Member member(member_id, member_metadata);
+		Member member(buf);
 		members_.push_back(member);
+	}
+
+	if (total_size_ != NumBytes())
+	{
+		throw "NumBytes are not equal";
 	}
 }
 
-int JoinGroupResponse::Size()
+int JoinGroupResponse::NumBytes()
 {
 	int size = 0;
 
-	size = Response::Size() + 2 /* error_code */ + 4 /* generation_id */+
+	size = Response::NumBytes() + 2 /* error_code */ + 4 /* generation_id */+
 		   2 /* group_protocol size */ + group_protocol_.length() +
 		   2 /* leader_id size */ + leader_id_.length() +
 		   2 /* member_id size */ + member_id_.length();
@@ -172,15 +185,15 @@ int JoinGroupResponse::Size()
 	// array
 	size += 4;
 	for (unsigned int i = 0; i < members_.size(); i++)
-		size += members_[i].Size();
+		size += members_[i].NumBytes();
 
 	return size;
 }
 
-void JoinGroupResponse::Print()
+void JoinGroupResponse::PrintAll()
 {
 	std::cout << "-----JoinGroupResponse-----" << std::endl;
-	Response::Print();
+	Response::PrintAll();
 	std::cout << "error code = " << error_code_ << std::endl;
 	std::cout << "generation id = " << generation_id_ << std::endl;
 	std::cout << "group protocol = " << group_protocol_ << std::endl;
@@ -190,9 +203,19 @@ void JoinGroupResponse::Print()
 	for (auto it = members_.begin(); it != members_.end(); ++it)
 	{
 		Member &member = *it;
-		member.Print();
+		member.PrintAll();
 	}
 	std::cout << "---------------------------" << std::endl;
+}
+
+std::vector<std::string> JoinGroupResponse::GetAllMembers()
+{
+	std::vector<std::string> members;
+
+	for (auto it = members_.begin(); it != members_.end(); ++it)
+		members.push_back(it->member_id_);
+
+	return members;
 }
 
 //------------------------------MetadataResponse
@@ -220,12 +243,12 @@ Broker::Broker(char **buf)
 	(*buf) += 4;
 }
 
-int Broker::Size()
+int Broker::NumBytes()
 {
 	return 4 + 2 + host_.length() + 4;
 }
 
-void Broker::Print()
+void Broker::PrintAll()
 {
 	std::cout << "node id = " << node_id_ << std::endl;
 	std::cout << "host = " << host_ << std::endl;
@@ -276,7 +299,7 @@ PartitionMetadata::PartitionMetadata(char **buf)
 	}
 }
 
-int PartitionMetadata::Size()
+int PartitionMetadata::NumBytes()
 {
 	int size = 0;
 	size += 2 + 4 + 4;
@@ -290,7 +313,7 @@ int PartitionMetadata::Size()
 	return size;
 }
 
-void PartitionMetadata::Print()
+void PartitionMetadata::PrintAll()
 {
 	std::cout << "partition error code = " << partition_error_code_ << std::endl;
 	std::cout << "partition id = " << partition_id_ << std::endl;
@@ -333,25 +356,25 @@ TopicMetadata::TopicMetadata(char **buf)
 	}
 }
 
-int TopicMetadata::Size()
+int TopicMetadata::NumBytes()
 {
 	int size = 0;
 	size += 2 + 2 + topic_name_.length();
 
 	size += 4;
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
-		size += it->Size();
+		size += it->NumBytes();
 
 	return size;
 }
 
-void TopicMetadata::Print()
+void TopicMetadata::PrintAll()
 {
 	std::cout << "topic error code = " << topic_error_code_ << std::endl;
 	std::cout << "topic name = " << topic_name_ << std::endl;
 
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
-		it->Print();
+		it->PrintAll();
 }
 
 MetadataResponse::MetadataResponse(int correlation_id, const std::vector<Broker> &brokers,
@@ -360,7 +383,7 @@ MetadataResponse::MetadataResponse(int correlation_id, const std::vector<Broker>
 {
 	brokers_ = brokers;
 	topic_metadata_ = topic_metadata;
-	total_size_ = Size();
+	total_size_ = NumBytes();
 }
 
 MetadataResponse::MetadataResponse(char **buf)
@@ -384,35 +407,50 @@ MetadataResponse::MetadataResponse(char **buf)
 		topic_metadata_.push_back(topic_metadata);
 	}
 
-	if (total_size_ != Size())
+	if (total_size_ != NumBytes())
 	{
-		throw "Size are not equal";
+		throw "NumBytes are not equal";
 	}
 }
 
-int MetadataResponse::Size()
+int MetadataResponse::NumBytes()
 {
-	int size = Response::Size();
+	int size = Response::NumBytes();
 
 	// array
 	size += 4;
 	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
-		size += it->Size();
+		size += it->NumBytes();
 
 	// array
 	size += 4;
 	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
-		size += it->Size();
+		size += it->NumBytes();
 
 	return size;
 }
 
-void MetadataResponse::Print()
+void MetadataResponse::PrintAll()
 {
 	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
-		it->Print();
+		it->PrintAll();
 
 	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
-		it->Print();
+		it->PrintAll();
 }
+
+int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
+{
+	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
+	{
+		if (b_it->host_ == hostname)
+			return b_it->node_id_;
+	}
+
+	return -1;
+}
+
+
+
+
 

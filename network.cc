@@ -1,7 +1,5 @@
 #include <iostream>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <string.h>
 #include <deque>
 
 #include "kafka_client.h"
@@ -21,7 +19,7 @@ Network::~Network()
 
 	// delete nodes
 	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
-		delete it->second;
+		//delete it->second;
 
 	pthread_mutex_destroy(&queue_mutex_);
 }
@@ -29,21 +27,21 @@ Network::~Network()
 int Network::Init(KafkaClient *client, const std::string &broker_list)
 {
 	pthread_mutex_init(&queue_mutex_, NULL);
-
 	client_ = client;
 
 	// create nodes
+	int tmp_broker_id = -1;
 	std::vector<std::string> brokers = Util::Split(broker_list, ',');
-	for (unsigned int i = 0; i < brokers.size(); i++)
+	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
 	{
-		std::vector<std::string> host_port = Util::Split(brokers[i], ':');
+		std::vector<std::string> host_port = Util::Split(*b_it, ':');
 		std::string host = host_port[0];
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
 		fds_.push_back(fd);
 		Node *node = new Node(fd, -1, host, port);
-		nodes_.insert({host, node});
+		nodes_.insert({tmp_broker_id--, node});
 	}
 
 	//state_machine_ = new StateMachine(network_, nodes_);
@@ -58,20 +56,66 @@ int Network::Start()
 {
 	//while(1)
 	{
+		Response *response;
+
 		std::vector<std::string> topics({"test"});
 		MetadataRequest *metadata_request = new MetadataRequest(2, topics);
-		GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
-		JoinGroupRequest *join_request = new JoinGroupRequest(0, "group", "", topics);
-
 		// Random select a node
 		auto it = nodes_.begin();
 		std::advance(it, rand() % nodes_.size());
 		Node *node = it->second;
+		SendRequestHandler(node, metadata_request);
+		ReceiveResponseHandler(node, &response);
+		MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
+		// insert new node
+		for (auto n_it = nodes_.begin(); n_it != nodes_.end(); ++n_it)
+		{
+			Node *node = n_it->second;
+			int broker_id = meta_response->GetBrokerIdFromHostname(node->host_);
+			node->id_ = broker_id;
+			nodes_.insert({broker_id, node});
+		}
+		// delete old node
+		for (auto n_it = nodes_.begin(); n_it != nodes_.end(); /* NULL */)
+		{
+			if (n_it->first < 0)
+				n_it = nodes_.erase(n_it);
+			else
+				++n_it;
+		}
+		std::vector<PartitionMetadata> &partition_metadata =
+							meta_response->topic_metadata_[0].partition_metadata_;
+		for (auto pm_it = partition_metadata.begin(); pm_it != partition_metadata.end(); ++pm_it)
+		{
+			Partition partition(pm_it->partition_id_, pm_it->leader_);
+			partitions_.push_back(partition);
+		}
+		
 
-		node = nodes_["w-w1902.add.nbt.qihoo.net"];
-
+		GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
+		SendRequestHandler(node, group_request);
+		ReceiveResponseHandler(node, &response);
+		GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
+		node = nodes_[group_response->coordinator_id_];
+		
+		JoinGroupRequest *join_request = new JoinGroupRequest(0, "group", "", topics);
 		SendRequestHandler(node, join_request);
-		ReceiveResponseHandler(node);
+		ReceiveResponseHandler(node, &response);
+		JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
+		members_ = join_response->GetAllMembers();
+		PartitionAssignment();
+
+#if 0
+		for (auto it = member_partition_map_.begin(); it != member_partition_map_.end(); ++it)
+		{
+			std::cout << it->first << std::endl;
+
+			for (auto i = it->second.begin(); i != it->second.end(); ++i)
+				std::cout << *i << std::endl;
+		}
+#endif
+
+		delete response;
 	}
 
 	return 0;
@@ -82,16 +126,12 @@ int Network::Stop()
 	return 0;
 }
 
-int Network::ReceiveResponseHandler(Node *node)
+int Network::ReceiveResponseHandler(Node *node, Response **response)
 {
-	Response *response;
-
-	int ret = DoReceive(node->fd_, &response);
+	int ret = DoReceive(node->fd_, response);
 	if (ret == 0)
 	{
-		response->Print();
-		delete response;
-
+		(*response)->PrintAll();
 		delete last_request_;
 	}
 
@@ -109,8 +149,8 @@ int Network::SendRequestHandler(Node *node, Request *request)
 
 int Network::DoReceive(int fd, Response **res)
 {
-	char buf[1024] = {0};
-	int nread = read(fd, buf, 1024);
+	char buf[6000] = {0};
+	int nread = read(fd, buf, 6000);
 	std::cout << "nread = " << nread << std::endl;
 	if (nread <= 0)
 	{
@@ -161,154 +201,30 @@ int Network::DoReceive(int fd, Response **res)
 
 int Network::DoSend(int fd, Request *request)
 {
-	int packet_size = request->total_size_ + 4;
-	char packet[1024];
-	char *p = packet;
-
-	// total size
-	int request_size = htonl(request->total_size_);
-	memcpy(p, &request_size, 4);
-	p += 4;
-
-	// api key
-	short api_key = htons(request->api_key_);
-	memcpy(p, &api_key, 2);
-	p += 2;
-
-	// api version
-	short api_version = htons(request->api_version_);
-	memcpy(p, &api_version, 2);
-	p += 2;
-
-	// correlation id
-	int correlation_id = htonl(request->correlation_id_);
-	memcpy(p, &correlation_id, 4);
-	p += 4;
-
-	// client id
-	short client_id_size = htons((short)request->client_id_.length());
-	memcpy(p, &client_id_size, 2);
-	p += 2;
-	memcpy(p, request->client_id_.c_str(), request->client_id_.length());
-	p += request->client_id_.length();
+	int packet_size = request->NumBytes() + 4;
+	char buf[2048];
+	char *p = buf;
 
 	switch(request->api_key_)
 	{
 		case ApiKey::MetadataRequest:
 		{
-			MetadataRequest *r = dynamic_cast<MetadataRequest*>(request);
-
-			// topics array
-			int topic_names_size = htonl(r->topic_names_.size());
-			memcpy(p, &topic_names_size, 4);
-			p += 4;
-
-			for (unsigned int i = 0; i < r->topic_names_.size(); i++)
-			{
-				std::string &topic = r->topic_names_[i];
-				short topic_size = htons((short)topic.length());
-				memcpy(p, &topic_size, 2);
-				p += 2;
-				memcpy(p, topic.c_str(), topic.length());
-				p += topic.length();
-			}
-
+			request->Package(&p);
 			break;
 		}
 		case ApiKey::GroupCoordinatorRequest:
 		{
-			GroupCoordinatorRequest *r = dynamic_cast<GroupCoordinatorRequest*>(request);
-
-			// group id
-			short group_id_size = htons((short)r->group_id_.length());
-			memcpy(p, &group_id_size, 2);
-			p += 2;
-			memcpy(p, r->group_id_.c_str(), r->group_id_.length());
+			request->Package(&p);
 			break;
 		}
 		case ApiKey::JoinGroupRequest:
 		{
-			JoinGroupRequest *r = dynamic_cast<JoinGroupRequest*>(request);
-
-			// group id
-			short group_id_size = htons((short)r->group_id_.length());
-			memcpy(p, &group_id_size, 2);
-			p += 2;
-			memcpy(p, r->group_id_.c_str(), r->group_id_.length());
-			p += r->group_id_.length();
-
-			// session timeout
-			int session_timeout = htonl(r->session_timeout_);
-			memcpy(p, &session_timeout, 4);
-			p += 4;
-
-			// member id
-			short member_id_size = htons((short)r->member_id_.length());
-			memcpy(p, &member_id_size, 2);
-			p += 2;
-			memcpy(p, r->member_id_.c_str(), r->member_id_.length());
-			p += r->member_id_.length();
-
-			// protocol type
-			short protocol_type_size = htons((short)r->protocol_type_.length());
-			memcpy(p, &protocol_type_size, 2);
-			p += 2;
-			memcpy(p, r->protocol_type_.c_str(), r->protocol_type_.length());
-			p += r->protocol_type_.length();
-
-			// array size
-			int group_protocols_size = htonl(r->group_protocols_.size());
-			memcpy(p, &group_protocols_size, 4);
-			p += 4;
-
-			for (unsigned int i = 0; i < r->group_protocols_.size(); i++)
-			{
-				// assignment strategy
-				GroupProtocol &gp = r->group_protocols_[i];
-				short assignment_strategy_size = htons((short)gp.assignment_strategy_.length());
-				memcpy(p, &assignment_strategy_size, 2);
-				p += 2;
-				memcpy(p, gp.assignment_strategy_.c_str(), gp.assignment_strategy_.length());
-				p += gp.assignment_strategy_.length();
-
-				// ProtocolMetadata bytes size
-				int protocol_metadata_size = htonl(gp.protocol_metadata_.Size());
-				memcpy(p, &protocol_metadata_size, 4);
-				p += 4;
-
-				// version
-				short version = htons(gp.protocol_metadata_.version_);
-				memcpy(p, &version, 2);
-				p += 2;
-
-				// topics
-				int topics_size = htonl(gp.protocol_metadata_.subscription_.size());
-				memcpy(p, &topics_size, 4);
-				p += 4;
-
-				for (unsigned int j = 0; j < gp.protocol_metadata_.subscription_.size(); j++)
-				{
-					std::string &topic = gp.protocol_metadata_.subscription_[j];
-					short topic_size = htons((short)topic.length());
-					memcpy(p, &topic_size, 2);
-					p += 2;
-					memcpy(p, topic.c_str(), topic.length());
-					p += topic.length();
-				}
-
-				// consumer id
-				int user_data_size = htonl(gp.protocol_metadata_.user_data_.size());
-				memcpy(p, &user_data_size, 4);
-				p += 4;
-				memcpy(p, gp.protocol_metadata_.user_data_.data(),
-					   gp.protocol_metadata_.user_data_.size());
-			}
-
+			request->Package(&p);
 			break;
 		}
 	}
 
-	int nwrite = write(fd, packet, packet_size);
+	int nwrite = write(fd, buf, packet_size);
 	std::cout << "Send " << nwrite << " bytes" << std::endl;
 	if (nwrite < 0)
 	{
@@ -336,4 +252,32 @@ short Network::GetApiKeyFromResponse(Request *last_request, int correlation_id)
 
 	return last_request->api_key_;
 }
+
+int Network::PartitionAssignment()
+{
+	int base = partitions_.size() / members_.size();
+	int remainder = partitions_.size() % members_.size();
+	int part_index = 0;
+	
+	for (auto m_it = members_.begin(); m_it != members_.end(); ++m_it)
+	{
+		std::vector<int> owned;
+		for (int i = 0; i < base; i++)
+		{
+			owned.push_back(partitions_[part_index++].id_);
+		}
+
+		if (remainder-- > 0)
+		{
+			owned.push_back(partitions_[part_index++].id_);
+		}
+
+		member_partition_map_.insert({*m_it, owned});
+	}
+
+	return 0;
+}
+
+
+
 

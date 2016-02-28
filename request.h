@@ -28,9 +28,10 @@ public:
 	Request(short api_key, int correlation_id, std::string client_id = "consumer-1");
 	virtual ~Request() {}
 
-	virtual int Size();
-	virtual void Print();
-	
+	virtual int NumBytes();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
+
 	int   total_size_;		// exclude itself
 	short api_key_;
 	short api_version_;		// always 0
@@ -43,8 +44,9 @@ class GroupCoordinatorRequest: public Request {
 public:
 	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
 
 	std::string group_id_;
 };
@@ -54,7 +56,8 @@ class ProtocolMetadata {
 public:
 	ProtocolMetadata(const std::vector<std::string> &topics);
 
-	int Size();
+	int NumBytes();
+	int Package(char **buf);
 
 	short version_;
 	std::vector<std::string> subscription_;
@@ -65,10 +68,11 @@ class GroupProtocol {
 public:
 	GroupProtocol(const std::vector<std::string> &topics);
 
-	int Size();
+	int NumBytes();
+	int Package(char **buf);
 
-	std::string assignment_strategy_;	// ProtocolName = range
-	ProtocolMetadata protocol_metadata_;
+	std::string assignment_strategy_;		// ProtocolName = range
+	ProtocolMetadata protocol_metadata_;	// byts
 };
 
 class JoinGroupRequest: public Request {
@@ -77,8 +81,9 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
 
 	std::string group_id_;
 	int session_timeout_;
@@ -90,10 +95,12 @@ public:
 //------------------------------MetadataRequest
 class MetadataRequest: public Request {
 public:
-	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names);
+	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
+			bool for_all_topic = false);
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
 
 	std::vector<std::string> topic_names_;
 };
@@ -121,7 +128,7 @@ class SyncGroupRequest: public Request {
 public:
 	SyncGroupRequest();
 
-	virtual void Print();
+	virtual void PrintAll();
 
 	std::string group_id_;
 	int generation_id_;

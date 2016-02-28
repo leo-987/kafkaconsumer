@@ -11,8 +11,8 @@ public:
 	Response(short api_key, char **buf);
 	virtual ~Response() {}
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
 
 	short api_key_;			// it's not a part of protocol 
 	int total_size_;		// exclude itself
@@ -27,8 +27,8 @@ public:
 
 	GroupCoordinatorResponse(char **buf);
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
 
 	short error_code_;
 	int coordinator_id_;
@@ -41,9 +41,10 @@ public:
 class Member {
 public:
 	Member(const std::string &member_id, const std::string &member_metadata);
+	Member(char **buf);
 
-	int Size();
-	void Print();
+	int NumBytes();
+	void PrintAll();
 
 	std::string member_id_;
 	std::string member_metadata_;	// bytes
@@ -56,9 +57,10 @@ public:
 			const std::string &member_id, const std::vector<Member> &members);
 
 	JoinGroupResponse(char **buf);
+	std::vector<std::string> GetAllMembers();
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
 
 	short error_code_;
 	int generation_id_;
@@ -74,8 +76,8 @@ public:
 	Broker(int node_id, const std::string &host, int port);
 	Broker(char **buf);
 
-	int Size();
-	void Print();
+	int NumBytes();
+	void PrintAll();
 
 	int node_id_;
 	std::string host_;
@@ -89,8 +91,8 @@ public:
 
 	PartitionMetadata(char **buf);
 
-	int Size();
-	void Print();
+	int NumBytes();
+	void PrintAll();
 
 	short partition_error_code_;
 	int partition_id_;
@@ -106,8 +108,8 @@ public:
 
 	TopicMetadata(char **buf);
 
-	int Size();
-	void Print();
+	int NumBytes();
+	void PrintAll();
 
 	short topic_error_code_;
 	std::string topic_name_;
@@ -121,9 +123,11 @@ public:
 
 	MetadataResponse(char **buf);
 
-	virtual int Size();
-	virtual void Print();
+	virtual int NumBytes();
+	virtual void PrintAll();
 
+	int GetBrokerIdFromHostname(const std::string &hostname);
+		
 	std::vector<Broker> brokers_;				// array
 	std::vector<TopicMetadata> topic_metadata_;	// array
 };

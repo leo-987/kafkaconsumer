@@ -8,6 +8,7 @@
 #include "response.h"
 #include "blocking_queue.h"
 #include "node.h"
+#include "partition.h"
 
 class KafkaClient;
 
@@ -19,11 +20,12 @@ public:
 	int Init(KafkaClient *client, const std::string &broker_list);
 	int Start();
 	int Stop();
-	int ReceiveResponseHandler(Node *node);
+	int ReceiveResponseHandler(Node *node, Response **response);
 	int SendRequestHandler(Node *node, Request *request);
 	int DoReceive(int fd, Response **res);
 	int DoSend(int fd, Request *request);
 	short GetApiKeyFromResponse(Request *last_request, int correlation_id);
+	int PartitionAssignment();
 
 	KafkaClient *client_;
 
@@ -34,11 +36,14 @@ public:
 
 	//StateMachine *state_machine_;
 
-	// hostname -> Node
-	std::map<std::string, Node*> nodes_;
+	// broker id -> Node
+	std::map<int, Node*> nodes_;
 
 	Request *last_request_;
 
+	std::vector<Partition> partitions_;
+	std::vector<std::string> members_;
+	std::map<std::string, std::vector<int>> member_partition_map_;
 private:
 	bool run_;
 };
