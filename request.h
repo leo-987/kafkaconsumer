@@ -3,24 +3,11 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <utility>
 
-// Api key is short, so use struct rather than enum
-struct ApiKey {
-	static const short ProduceRequest          = 0;
-	static const short FetchRequest            = 1;
-	static const short OffsetRequest           = 2;
-	static const short MetadataRequest         = 3;
-	static const short OffsetCommitRequest     = 8;
-	static const short OffsetFetchRequest      = 9;
-	static const short GroupCoordinatorRequest = 10;
-	static const short JoinGroupRequest        = 11;
-	static const short HeartbeatRequest        = 12;
-	static const short LeaveGroupRequest       = 13;
-	static const short SyncGroupRequest        = 14;
-	static const short DescribeGroupsRequest   = 15;
-	static const short ListGroupsRequest       = 16;
-};
+#include "member_assignment.h"
+#include "request_response_type.h"
 
 //------------------------------Head
 class Request {
@@ -28,7 +15,7 @@ public:
 	Request(short api_key, int correlation_id, std::string client_id = "consumer-1");
 	virtual ~Request() {}
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);
 
@@ -44,7 +31,7 @@ class GroupCoordinatorRequest: public Request {
 public:
 	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);
 
@@ -56,7 +43,7 @@ class ProtocolMetadata {
 public:
 	ProtocolMetadata(const std::vector<std::string> &topics);
 
-	int NumBytes();
+	int CountSize();
 	int Package(char **buf);
 
 	short version_;
@@ -68,7 +55,7 @@ class GroupProtocol {
 public:
 	GroupProtocol(const std::vector<std::string> &topics);
 
-	int NumBytes();
+	int CountSize();
 	int Package(char **buf);
 
 	std::string assignment_strategy_;		// ProtocolName = range
@@ -81,7 +68,7 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);
 
@@ -98,7 +85,7 @@ public:
 	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
 			bool for_all_topic = false);
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);
 
@@ -106,19 +93,14 @@ public:
 };
 
 //------------------------------SyncGroupRequest
-#if 0
-class MemberAssignment {
-public:
-	MemberAssignment();
-
-	short version_;
-	std::vector<PartitionAssignment> partition_assignment_;
-	std::string user_data_;		// bytes
-};
-
 class GroupAssignment {
 public:
-	GroupAssignment();
+	GroupAssignment(const std::string &topic, const std::string &member_id,
+		const std::vector<int> &partitions);
+
+	int CountSize();
+	void PrintAll();
+	int Package(char **buf);
 
 	std::string member_id_;
 	MemberAssignment member_assignment_;	// bytes
@@ -126,16 +108,35 @@ public:
 
 class SyncGroupRequest: public Request {
 public:
-	SyncGroupRequest();
+	SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
+			int generation_id, const std::string &member_id,
+			const std::map<std::string, std::vector<int>> &member_partition_map);
 
+	virtual int CountSize();
 	virtual void PrintAll();
+	virtual int Package(char **buf);
 
 	std::string group_id_;
 	int generation_id_;
 	std::string member_id_;
-	std::vector<GroupAssignment> group_assignment_;
+	std::vector<GroupAssignment> group_assignment_;		// array
 };
-#endif
+
+//------------------------------HeartbeatRequest
+class HeartbeatRequest: public Request {
+public:
+	HeartbeatRequest(int correlation_id, const std::string &group_id, int generation_id,
+					 const std::string &member_id);
+
+	virtual int CountSize();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
+
+	std::string group_id_;
+	int generation_id_;
+	std::string member_id_;
+};
+
 #endif
 
 

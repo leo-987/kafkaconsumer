@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+#include "member_assignment.h"
+#include "request_response_type.h"
+
 //------------------------------Head
 class Response {
 public:
@@ -11,7 +14,7 @@ public:
 	Response(short api_key, char **buf);
 	virtual ~Response() {}
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 
 	short api_key_;			// it's not a part of protocol 
@@ -27,7 +30,7 @@ public:
 
 	GroupCoordinatorResponse(char **buf);
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 
 	short error_code_;
@@ -43,7 +46,7 @@ public:
 	Member(const std::string &member_id, const std::string &member_metadata);
 	Member(char **buf);
 
-	int NumBytes();
+	int CountSize();
 	void PrintAll();
 
 	std::string member_id_;
@@ -59,8 +62,11 @@ public:
 	JoinGroupResponse(char **buf);
 	std::vector<std::string> GetAllMembers();
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
+
+	int GetGenerationId();
+	std::string GetMemberId();
 
 	short error_code_;
 	int generation_id_;
@@ -76,7 +82,7 @@ public:
 	Broker(int node_id, const std::string &host, int port);
 	Broker(char **buf);
 
-	int NumBytes();
+	int CountSize();
 	void PrintAll();
 
 	int node_id_;
@@ -91,7 +97,7 @@ public:
 
 	PartitionMetadata(char **buf);
 
-	int NumBytes();
+	int CountSize();
 	void PrintAll();
 
 	short partition_error_code_;
@@ -108,7 +114,7 @@ public:
 
 	TopicMetadata(char **buf);
 
-	int NumBytes();
+	int CountSize();
 	void PrintAll();
 
 	short topic_error_code_;
@@ -123,7 +129,7 @@ public:
 
 	MetadataResponse(char **buf);
 
-	virtual int NumBytes();
+	virtual int CountSize();
 	virtual void PrintAll();
 
 	int GetBrokerIdFromHostname(const std::string &hostname);
@@ -132,4 +138,28 @@ public:
 	std::vector<TopicMetadata> topic_metadata_;	// array
 };
 
+//------------------------------SyncGroupResponse
+class SyncGroupResponse: public Response {
+public:
+	SyncGroupResponse(char **buf);
+
+	virtual int CountSize();
+	virtual void PrintAll();
+
+	short error_code_;
+	MemberAssignment member_assignment_;	// bytes
+};
+
+//------------------------------HeartbeatResponse
+class HeartbeatResponse: public Response {
+public:
+	HeartbeatResponse(char **buf);
+
+	virtual int CountSize();
+	virtual void PrintAll();
+
+	short error_code_;
+};
+
 #endif
+

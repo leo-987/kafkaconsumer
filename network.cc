@@ -102,6 +102,8 @@ int Network::Start()
 		SendRequestHandler(node, join_request);
 		ReceiveResponseHandler(node, &response);
 		JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
+		generation_id_ = join_response->GetGenerationId();
+		member_id_ = join_response->GetMemberId();
 		members_ = join_response->GetAllMembers();
 		PartitionAssignment();
 
@@ -114,6 +116,19 @@ int Network::Start()
 				std::cout << *i << std::endl;
 		}
 #endif
+
+		SyncGroupRequest *sync_request = new SyncGroupRequest(0, "test", "group", generation_id_,
+				member_id_, member_partition_map_);
+
+		sync_request->PrintAll();
+
+		SendRequestHandler(node, sync_request);
+		ReceiveResponseHandler(node, &response);
+
+		HeartbeatRequest *hear_request = new HeartbeatRequest(1, "group", generation_id_, member_id_);
+		hear_request->PrintAll();
+		SendRequestHandler(node, hear_request);
+		ReceiveResponseHandler(node, &response);
 
 		delete response;
 	}
@@ -128,7 +143,7 @@ int Network::Stop()
 
 int Network::ReceiveResponseHandler(Node *node, Response **response)
 {
-	int ret = DoReceive(node->fd_, response);
+	int ret = Receive(node->fd_, response);
 	if (ret == 0)
 	{
 		(*response)->PrintAll();
@@ -140,14 +155,14 @@ int Network::ReceiveResponseHandler(Node *node, Response **response)
 
 int Network::SendRequestHandler(Node *node, Request *request)
 {
-	DoSend(node->fd_, request);
+	Send(node->fd_, request);
 
 	last_request_ = request;
 
 	return 0;
 }
 
-int Network::DoReceive(int fd, Response **res)
+int Network::Receive(int fd, Response **res)
 {
 	char buf[6000] = {0};
 	int nread = read(fd, buf, 6000);
@@ -194,17 +209,30 @@ int Network::DoReceive(int fd, Response **res)
 			*res = response;
 			break;
 		}
+		case ApiKey::SyncGroupRequest:
+		{
+			SyncGroupResponse *response = new SyncGroupResponse(&p);
+			*res = response;
+			break;
+		}
+		case ApiKey::HeartbeatRequest:
+		{
+			HeartbeatResponse *heart_response = new HeartbeatResponse(&p);
+			*res = heart_response;
+			break;
+		}
 	}
 
 	return 0;
 }
 
-int Network::DoSend(int fd, Request *request)
+int Network::Send(int fd, Request *request)
 {
-	int packet_size = request->NumBytes() + 4;
+	int packet_size = request->CountSize() + 4;
 	char buf[2048];
 	char *p = buf;
 
+#if 0
 	switch(request->api_key_)
 	{
 		case ApiKey::MetadataRequest:
@@ -222,7 +250,15 @@ int Network::DoSend(int fd, Request *request)
 			request->Package(&p);
 			break;
 		}
+		case ApiKey::SyncGroupRequest:
+		{
+			request->Package(&p);
+			break;
+		}
 	}
+#endif
+
+	request->Package(&p);
 
 	int nwrite = write(fd, buf, packet_size);
 	std::cout << "Send " << nwrite << " bytes" << std::endl;

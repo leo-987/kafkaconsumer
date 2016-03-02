@@ -22,8 +22,8 @@ public:
 	int Stop();
 	int ReceiveResponseHandler(Node *node, Response **response);
 	int SendRequestHandler(Node *node, Request *request);
-	int DoReceive(int fd, Response **res);
-	int DoSend(int fd, Request *request);
+	int Receive(int fd, Response **res);
+	int Send(int fd, Request *request);
 	short GetApiKeyFromResponse(Request *last_request, int correlation_id);
 	int PartitionAssignment();
 
@@ -44,6 +44,9 @@ public:
 	std::vector<Partition> partitions_;
 	std::vector<std::string> members_;
 	std::map<std::string, std::vector<int>> member_partition_map_;
+
+	int generation_id_;
+	std::string member_id_;
 private:
 	bool run_;
 };

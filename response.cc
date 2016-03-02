@@ -21,7 +21,7 @@ Response::Response(short api_key, char **buf)
 	(*buf) += 4;
 }
 
-int Response::NumBytes()
+int Response::CountSize()
 {
 	return 4;
 }
@@ -42,7 +42,7 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short err
 	coordinator_id_ = coordinator_id;
 	coordinator_host_ = coordinator_host;
 	coordinator_port_ = coordinator_port;
-	total_size_ = NumBytes();
+	total_size_ = CountSize();
 }
 
 GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
@@ -58,16 +58,16 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	(*buf) += host_size;
 	coordinator_port_ = Util::NetBytesToInt(*buf); 
 
-	if (total_size_ != NumBytes())
+	if (total_size_ != CountSize())
 	{
-		throw "NumBytes are not equal";
+		throw "total size != count size are not equal";
 	}
 }
 
-int GroupCoordinatorResponse::NumBytes()
+int GroupCoordinatorResponse::CountSize()
 {
 	int size = 0;
-	size = Response::NumBytes() + 2 /* error_code */ + 4 /* coordinator_id */+
+	size = Response::CountSize() + 2 /* error_code */ + 4 /* coordinator_id */+
 		   2 /* coordinator_host size */ + coordinator_host_.length() + 4;
 	return size;
 }
@@ -105,7 +105,7 @@ Member::Member(char **buf)
 	(*buf) += member_metadata_size;
 }
 
-int Member::NumBytes()
+int Member::CountSize()
 {
 	return 2 + member_id_.length() +
 		   4 /* bytes */ + member_metadata_.length();
@@ -129,7 +129,7 @@ JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
 	member_id_ = member_id;
 	members_ = members;
 
-	total_size_ = NumBytes();
+	total_size_ = CountSize();
 }
 
 JoinGroupResponse::JoinGroupResponse(char **buf)
@@ -167,17 +167,17 @@ JoinGroupResponse::JoinGroupResponse(char **buf)
 		members_.push_back(member);
 	}
 
-	if (total_size_ != NumBytes())
+	if (total_size_ != CountSize())
 	{
-		throw "NumBytes are not equal";
+		throw "CountSize are not equal";
 	}
 }
 
-int JoinGroupResponse::NumBytes()
+int JoinGroupResponse::CountSize()
 {
 	int size = 0;
 
-	size = Response::NumBytes() + 2 /* error_code */ + 4 /* generation_id */+
+	size = Response::CountSize() + 2 /* error_code */ + 4 /* generation_id */+
 		   2 /* group_protocol size */ + group_protocol_.length() +
 		   2 /* leader_id size */ + leader_id_.length() +
 		   2 /* member_id size */ + member_id_.length();
@@ -185,7 +185,7 @@ int JoinGroupResponse::NumBytes()
 	// array
 	size += 4;
 	for (unsigned int i = 0; i < members_.size(); i++)
-		size += members_[i].NumBytes();
+		size += members_[i].CountSize();
 
 	return size;
 }
@@ -218,6 +218,16 @@ std::vector<std::string> JoinGroupResponse::GetAllMembers()
 	return members;
 }
 
+int JoinGroupResponse::GetGenerationId()
+{
+	return generation_id_;
+}
+
+std::string JoinGroupResponse::GetMemberId()
+{
+	return member_id_;
+}
+
 //------------------------------MetadataResponse
 Broker::Broker(int node_id, const std::string &host, int port)
 {
@@ -243,7 +253,7 @@ Broker::Broker(char **buf)
 	(*buf) += 4;
 }
 
-int Broker::NumBytes()
+int Broker::CountSize()
 {
 	return 4 + 2 + host_.length() + 4;
 }
@@ -299,7 +309,7 @@ PartitionMetadata::PartitionMetadata(char **buf)
 	}
 }
 
-int PartitionMetadata::NumBytes()
+int PartitionMetadata::CountSize()
 {
 	int size = 0;
 	size += 2 + 4 + 4;
@@ -356,14 +366,14 @@ TopicMetadata::TopicMetadata(char **buf)
 	}
 }
 
-int TopicMetadata::NumBytes()
+int TopicMetadata::CountSize()
 {
 	int size = 0;
 	size += 2 + 2 + topic_name_.length();
 
 	size += 4;
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
-		size += it->NumBytes();
+		size += it->CountSize();
 
 	return size;
 }
@@ -383,7 +393,7 @@ MetadataResponse::MetadataResponse(int correlation_id, const std::vector<Broker>
 {
 	brokers_ = brokers;
 	topic_metadata_ = topic_metadata;
-	total_size_ = NumBytes();
+	total_size_ = CountSize();
 }
 
 MetadataResponse::MetadataResponse(char **buf)
@@ -407,36 +417,40 @@ MetadataResponse::MetadataResponse(char **buf)
 		topic_metadata_.push_back(topic_metadata);
 	}
 
-	if (total_size_ != NumBytes())
+	if (total_size_ != CountSize())
 	{
-		throw "NumBytes are not equal";
+		throw "CountSize are not equal";
 	}
 }
 
-int MetadataResponse::NumBytes()
+int MetadataResponse::CountSize()
 {
-	int size = Response::NumBytes();
+	int size = Response::CountSize();
 
 	// array
 	size += 4;
 	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
-		size += it->NumBytes();
+		size += it->CountSize();
 
 	// array
 	size += 4;
 	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
-		size += it->NumBytes();
+		size += it->CountSize();
 
 	return size;
 }
 
 void MetadataResponse::PrintAll()
 {
+	std::cout << "-----MetadataResponse-----" << std::endl;
+	Response::PrintAll();
+
 	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
 		it->PrintAll();
 
 	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
 		it->PrintAll();
+	std::cout << "--------------------------" << std::endl;
 }
 
 int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
@@ -450,7 +464,61 @@ int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
 	return -1;
 }
 
+//------------------------------SyncGroupResponse
+SyncGroupResponse::SyncGroupResponse(char **buf)
+	: Response(ApiKey::SyncGroupRequest, buf)
+{
+	// error code
+	error_code_ = Util::NetBytesToShort(*buf);
+	(*buf) += 2;
 
+	// MemberAssignment bytes
+	int member_assignment_size = Util::NetBytesToInt(*buf);
+	(*buf) += 4;
 
+	// XXX: we should use member_assignment_size
+	member_assignment_ = MemberAssignment(buf);
 
+	if (total_size_ != CountSize())
+	{
+		throw "CountSize are not equal";
+	}
+}
 
+int SyncGroupResponse::CountSize()
+{
+	int size = Response::CountSize();
+	size += 2;
+	size += 4 + member_assignment_.CountSize();
+	return size;
+}
+
+void SyncGroupResponse::PrintAll()
+{
+	std::cout << "-----SyncGroupResponse-----" << std::endl;
+	Response::PrintAll();
+	std::cout << "error code = " << error_code_ << std::endl;
+	member_assignment_.PrintAll();
+	std::cout << "---------------------------" << std::endl;
+}
+
+//------------------------------HeartbeatResponse
+HeartbeatResponse::HeartbeatResponse(char **buf)
+	: Response(ApiKey::HeartbeatRequest, buf)
+{
+	// error code
+	error_code_ = Util::NetBytesToShort(*buf);
+}
+
+int HeartbeatResponse::CountSize()
+{
+	return Response::CountSize() + 2;
+}
+
+void HeartbeatResponse::PrintAll()
+{
+	std::cout << "-----HeartbeatResponse-----" << std::endl;
+	Response::PrintAll();
+	std::cout << "error code = " << error_code_ << std::endl;
+	std::cout << "---------------------------" << std::endl;
+}
