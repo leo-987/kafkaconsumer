@@ -88,7 +88,7 @@ int Network::Start()
 		for (auto pm_it = partition_metadata.begin(); pm_it != partition_metadata.end(); ++pm_it)
 		{
 			Partition partition(pm_it->partition_id_, pm_it->leader_);
-			partitions_.push_back(partition);
+			partitions_map_.insert({partition.id_, partition});
 		}
 		
 
@@ -119,15 +119,27 @@ int Network::Start()
 
 		SyncGroupRequest *sync_request = new SyncGroupRequest(0, "test", "group", generation_id_,
 				member_id_, member_partition_map_);
-
 		sync_request->PrintAll();
-
 		SendRequestHandler(node, sync_request);
 		ReceiveResponseHandler(node, &response);
+
 
 		HeartbeatRequest *hear_request = new HeartbeatRequest(1, "group", generation_id_, member_id_);
 		hear_request->PrintAll();
 		SendRequestHandler(node, hear_request);
+		ReceiveResponseHandler(node, &response);
+
+		std::vector<int> partitions({1});
+		OffsetFetchRequest *offset_request = new OffsetFetchRequest(123, "group", "test", partitions);
+		offset_request->PrintAll();
+		SendRequestHandler(node, offset_request);
+		ReceiveResponseHandler(node, &response);
+		OffsetFetchResponse *offset_response = dynamic_cast<OffsetFetchResponse*>(response);
+		offset_response->ParseOffset(partition_offset_map_);
+
+		FetchRequest *fetch_request = new FetchRequest(0, "test", 1, partition_offset_map_[1]);
+		fetch_request->PrintAll();
+		SendRequestHandler(node, fetch_request);
 		ReceiveResponseHandler(node, &response);
 
 		delete response;
@@ -221,6 +233,18 @@ int Network::Receive(int fd, Response **res)
 			*res = heart_response;
 			break;
 		}
+		case ApiKey::FetchRequest:
+		{
+			FetchResponse *fetch_response = new FetchResponse(&p);
+			*res = fetch_response;
+			break;
+		}
+		case ApiKey::OffsetFetchRequest:
+		{
+			OffsetFetchResponse *offset_fetch_response = new OffsetFetchResponse(&p);
+			*res = offset_fetch_response;
+			break;
+		}
 	}
 
 	return 0;
@@ -291,21 +315,23 @@ short Network::GetApiKeyFromResponse(Request *last_request, int correlation_id)
 
 int Network::PartitionAssignment()
 {
-	int base = partitions_.size() / members_.size();
-	int remainder = partitions_.size() % members_.size();
-	int part_index = 0;
+	int base = partitions_map_.size() / members_.size();
+	int remainder = partitions_map_.size() % members_.size();
+	auto pm_it = partitions_map_.begin();
 	
 	for (auto m_it = members_.begin(); m_it != members_.end(); ++m_it)
 	{
 		std::vector<int> owned;
 		for (int i = 0; i < base; i++)
 		{
-			owned.push_back(partitions_[part_index++].id_);
+			owned.push_back(pm_it->second.id_);
+			++pm_it;
 		}
 
 		if (remainder-- > 0)
 		{
-			owned.push_back(partitions_[part_index++].id_);
+			owned.push_back(pm_it->second.id_);
+			++pm_it;
 		}
 
 		member_partition_map_.insert({*m_it, owned});

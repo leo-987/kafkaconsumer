@@ -41,9 +41,10 @@ public:
 
 	Request *last_request_;
 
-	std::vector<Partition> partitions_;
+	std::map<int, Partition> partitions_map_;
 	std::vector<std::string> members_;
 	std::map<std::string, std::vector<int>> member_partition_map_;
+	std::map<int, long> partition_offset_map_;
 
 	int generation_id_;
 	std::string member_id_;

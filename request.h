@@ -12,7 +12,7 @@
 //------------------------------Head
 class Request {
 public:
-	Request(short api_key, int correlation_id, std::string client_id = "consumer-1");
+	Request(short api_key, int correlation_id, short api_version = 0, const std::string client_id = "consumer-1");
 	virtual ~Request() {}
 
 	virtual int CountSize();
@@ -21,7 +21,7 @@ public:
 
 	int   total_size_;		// exclude itself
 	short api_key_;
-	short api_version_;		// always 0
+	short api_version_;
 	int   correlation_id_;
 	std::string client_id_;
 };
@@ -135,6 +135,40 @@ public:
 	std::string group_id_;
 	int generation_id_;
 	std::string member_id_;
+};
+
+//------------------------------FetchRequest
+class FetchRequest: public Request {
+public:
+	FetchRequest(int correlation_id, const std::string &topic_name, int partition, long fetch_offset);
+
+	virtual int CountSize();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
+
+	int replica_id_;
+	int max_wait_time_;
+	int min_bytes_;
+	std::string topic_name_;
+	int partition_;
+	long fetch_offset_;
+	int max_bytes_;
+};
+
+//------------------------------OffsetFetchRequest
+class OffsetFetchRequest: public Request {
+public:
+	OffsetFetchRequest(int correlation_id, const std::string &group,
+			const std::string &topic, const std::vector<int> &partitions);
+
+	virtual int CountSize();
+	virtual void PrintAll();
+	virtual int Package(char **buf);
+
+	// XXX: ConsumerGroup [TopicName [Partition]]
+	std::string group_;
+	std::string topic_;
+	std::vector<int> partitions_;
 };
 
 #endif
