@@ -588,7 +588,8 @@ int FetchRequest::Package(char **buf)
 	(*buf) += 4;
 
 	// min bytes
-	long fetch_offset = htobe64(fetch_offset_);
+	//long fetch_offset = htobe64(fetch_offset_);
+	long fetch_offset = htonll(fetch_offset_);
 	memcpy(*buf, &fetch_offset, 8);
 	(*buf) += 8;
 

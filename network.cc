@@ -107,15 +107,6 @@ int Network::Start()
 		members_ = join_response->GetAllMembers();
 		PartitionAssignment();
 
-#if 0
-		for (auto it = member_partition_map_.begin(); it != member_partition_map_.end(); ++it)
-		{
-			std::cout << it->first << std::endl;
-
-			for (auto i = it->second.begin(); i != it->second.end(); ++i)
-				std::cout << *i << std::endl;
-		}
-#endif
 
 		SyncGroupRequest *sync_request = new SyncGroupRequest(0, "test", "group", generation_id_,
 				member_id_, member_partition_map_);
@@ -123,14 +114,13 @@ int Network::Start()
 		SendRequestHandler(node, sync_request);
 		ReceiveResponseHandler(node, &response);
 
-
 		HeartbeatRequest *hear_request = new HeartbeatRequest(1, "group", generation_id_, member_id_);
 		hear_request->PrintAll();
 		SendRequestHandler(node, hear_request);
 		ReceiveResponseHandler(node, &response);
 
 		std::vector<int> partitions({1});
-		OffsetFetchRequest *offset_request = new OffsetFetchRequest(123, "group", "test", partitions);
+		OffsetFetchRequest *offset_request = new OffsetFetchRequest(1, "group", "test", partitions);
 		offset_request->PrintAll();
 		SendRequestHandler(node, offset_request);
 		ReceiveResponseHandler(node, &response);
@@ -177,20 +167,12 @@ int Network::SendRequestHandler(Node *node, Request *request)
 int Network::Receive(int fd, Response **res)
 {
 	char buf[6000] = {0};
-	int nread = read(fd, buf, 6000);
-	std::cout << "nread = " << nread << std::endl;
-	if (nread <= 0)
-	{
-		if (nread == 0)
-			std::cout << "connection has been closed" << std::endl;
-		else
-			std::cout << "error occurred" << std::endl;
 
-		close(fd);
+	int ret = CompleteRead(fd ,buf);
+	if (ret < 0)
 		return -1;
-	}
 
-	//int response_size = Util::NetBytesToInt(buf);
+	int response_size = Util::NetBytesToInt(buf);
 	int correlation_id = Util::NetBytesToInt(buf + 4); 
 	int api_key = GetApiKeyFromResponse(last_request_, correlation_id);
 	if (api_key < 0)
@@ -340,6 +322,38 @@ int Network::PartitionAssignment()
 	return 0;
 }
 
+int Network::CompleteRead(int fd, char *buf)
+{
+	char size_buf[4];
 
+	read(fd, size_buf, 4);
+	memcpy(buf, size_buf, 4);
+	int total_len = Util::NetBytesToInt(size_buf);
+	std::cout << "total len = " << total_len << std::endl;
+
+	int sum_read = 0;
+	while (sum_read != total_len)
+	{
+		char tmp_buf[4096] = {0};
+		int nread = read(fd, tmp_buf, 4096);
+		std::cout << "nread = " << nread << std::endl;
+
+		if (nread <= 0)
+		{
+			if (nread == 0)
+				std::cout << "connection has been closed" << std::endl;
+			else
+				std::cout << "error occurred" << std::endl;
+
+			close(fd);
+			return -1;
+		}
+
+		memcpy(buf + 4 + sum_read, tmp_buf, nread);
+		sum_read += nread;
+	}
+
+	return 0;
+}
 
 

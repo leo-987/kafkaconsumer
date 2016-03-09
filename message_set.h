@@ -29,19 +29,20 @@ public:
 	void PrintAll();
 
 	long offset_;
-	int message_size_;
+	int message_size_;	// the size of the subsequent request or response message in bytes
 	Message message_;
 };
 
 class MessageSet {
 public:
 	MessageSet();
-	MessageSet(char **buf);
+	MessageSet(char **buf, int message_set_size);
 
 	int CountSize();
 	void PrintAll();
 
 	// array
+	int message_set_size_;	// The size in bytes of the message set for this partition
 	std::vector<OffsetAndMessage> offset_message_;
 };
 

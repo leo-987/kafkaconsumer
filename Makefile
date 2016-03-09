@@ -18,4 +18,4 @@ $(TARGET): $(OBJECTS)
 	$(CC) -o $@ $(CXXFLAGS) $<
 
 clean:
-	rm main *.o -rf
+	rm -rf main *.o

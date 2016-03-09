@@ -26,6 +26,7 @@ public:
 	int Send(int fd, Request *request);
 	short GetApiKeyFromResponse(Request *last_request, int correlation_id);
 	int PartitionAssignment();
+	int CompleteRead(int fd, char *buf); 
 
 	KafkaClient *client_;
 

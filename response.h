@@ -174,7 +174,7 @@ public:
 	int partition_;
 	short error_code_;
 	long high_water_mark_offset_;
-	int message_set_size_;
+	int message_set_size_;	// The size in bytes of the message set for this partition
 	MessageSet message_set_;
 };
 

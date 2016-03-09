@@ -524,6 +524,7 @@ void HeartbeatResponse::PrintAll()
 }
 
 //------------------------------FetchResponse
+// Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet
 PartitionResponseInfo::PartitionResponseInfo(char **buf)
 {
 	partition_ = Util::NetBytesToInt(*buf);
@@ -534,14 +535,17 @@ PartitionResponseInfo::PartitionResponseInfo(char **buf)
 
 	long net_high_water_mark;
 	memcpy(&net_high_water_mark, *buf, 8);
-	high_water_mark_offset_ = be64toh(net_high_water_mark);
+	// for Linux
+	//high_water_mark_offset_ = be64toh(net_high_water_mark);
+	// for Mac
+	high_water_mark_offset_ = ntohll(net_high_water_mark);
 	(*buf) += 8;
 
 	message_set_size_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	message_set_ = MessageSet(buf);
-	//(*buf) += message_set_size_;
+	if (message_set_size_ != 0)
+		message_set_ = MessageSet(buf, message_set_size_);
 }
 
 int PartitionResponseInfo::CountSize()
@@ -558,6 +562,7 @@ void PartitionResponseInfo::PrintAll()
 	message_set_.PrintAll();
 }
 
+// TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]
 TopicPartitionResponseInfo::TopicPartitionResponseInfo(char **buf)
 {
 	// topic name
@@ -599,9 +604,11 @@ void TopicPartitionResponseInfo::PrintAll()
 	}
 }
 
+// [TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]] ThrottleTime
 FetchResponse::FetchResponse(char **buf)
 	: Response(ApiKey::FetchRequest, buf)
 {
+	// what?
 	(*buf) += 4;
 
 	int topics_info_size = Util::NetBytesToInt(*buf);
@@ -616,6 +623,8 @@ FetchResponse::FetchResponse(char **buf)
 	(*buf) += 4;
 
 	std::cout << CountSize() << std::endl;
+	std::cout << total_size_ << std::endl;
+
 	if (total_size_ != CountSize())
 	{
 		throw "CountSize are not equal";
@@ -656,7 +665,8 @@ PartitionOffsetInfo::PartitionOffsetInfo(char **buf)
 
 	long offset;
 	memcpy(&offset, *buf, 8);
-	offset_ = be64toh(offset);
+	//offset_ = be64toh(offset);
+	offset_ = ntohll(offset);
 	(*buf) += 8;
 
 	short metadata_length = Util::NetBytesToShort(*buf);

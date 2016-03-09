@@ -19,6 +19,7 @@ Message::Message(char **buf)
 	(*buf) += 1;
 
 	int key_len = Util::NetBytesToInt(*buf);
+	key_len = (key_len == -1 ? 0 : key_len);
 	(*buf) += 4;
 	key_ = std::string(*buf, key_len);
 	(*buf) += key_len;
@@ -31,7 +32,7 @@ Message::Message(char **buf)
 
 int Message::CountSize()
 {
-	return 4 + 1 + 1 + 8 + 4 + key_.length() + 4 + value_.length();
+	return 4 + 1 + 1 + 4 + key_.length() + 4 + value_.length();
 }
 
 void Message::PrintAll()
@@ -52,7 +53,10 @@ OffsetAndMessage::OffsetAndMessage(char **buf)
 {
 	long offset;
 	memcpy(&offset, *buf, 8);
-	offset_ = be64toh(offset);
+	// for Linux
+	//offset_ = be64toh(offset);
+	// for Mac
+	offset_ = ntohll(offset);
 	(*buf) += 8;
 
 	message_size_ = Util::NetBytesToInt(*buf);
@@ -77,21 +81,20 @@ MessageSet::MessageSet()
 {
 }
 
-MessageSet::MessageSet(char **buf)
+MessageSet::MessageSet(char **buf, int message_set_size)
 {
-	int array_size = Util::NetBytesToInt(*buf);
-	(*buf) += 4;
-
-	for (int i = 0; i < array_size; i++)
+	int sum = 0;
+	while (sum != message_set_size)
 	{
 		OffsetAndMessage offset_message(buf);
 		offset_message_.push_back(offset_message);
+		sum += offset_message.CountSize();
 	}
 }
 
 int MessageSet::CountSize()
 {
-	int size = 4;
+	int size = 0;
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
 	{
 		size += om_it->CountSize();
