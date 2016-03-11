@@ -24,9 +24,12 @@ public:
 	int SendRequestHandler(Node *node, Request *request);
 	int Receive(int fd, Response **res);
 	int Send(int fd, Request *request);
-	short GetApiKeyFromResponse(Request *last_request, int correlation_id);
+	short GetApiKeyFromResponse(int correlation_id);
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf); 
+
+	int GetCorrelationIdFromRequest(Request *request);
+	short GetApiKeyFromRequest(Request *request);
 
 	KafkaClient *client_;
 
@@ -39,9 +42,6 @@ public:
 
 	// broker id -> Node
 	std::map<int, Node*> nodes_;
-
-	Request *last_request_;
-
 	std::map<int, Partition> partitions_map_;
 	std::vector<std::string> members_;
 	std::map<std::string, std::vector<int>> member_partition_map_;
@@ -49,6 +49,9 @@ public:
 
 	int generation_id_;
 	std::string member_id_;
+
+	int last_correlation_id_;
+	short last_api_key_;
 private:
 	bool run_;
 };

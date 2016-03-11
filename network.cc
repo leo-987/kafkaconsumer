@@ -7,6 +7,13 @@
 #include "util.h"
 #include "response.h"
 #include "net_util.h"
+#include "offset_request.h"
+#include "offset_response.h"
+#include "offset_fetch_request.h"
+#include "offset_fetch_response.h"
+
+#include "fetch_request.h"
+#include "fetch_response.h"
 
 Network::Network()
 {
@@ -19,7 +26,7 @@ Network::~Network()
 
 	// delete nodes
 	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
-		//delete it->second;
+		delete it->second;
 
 	pthread_mutex_destroy(&queue_mutex_);
 }
@@ -120,19 +127,38 @@ int Network::Start()
 		ReceiveResponseHandler(node, &response);
 
 		std::vector<int> partitions({1});
-		OffsetFetchRequest *offset_request = new OffsetFetchRequest(1, "group", "test", partitions);
-		offset_request->PrintAll();
-		SendRequestHandler(node, offset_request);
+		OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(1, "group", "test", partitions);
+		offset_fetch_request->PrintAll();
+		SendRequestHandler(node, offset_fetch_request);
 		ReceiveResponseHandler(node, &response);
-		OffsetFetchResponse *offset_response = dynamic_cast<OffsetFetchResponse*>(response);
-		offset_response->ParseOffset(partition_offset_map_);
+		OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
+		offset_fetch_response->ParseOffset(partition_offset_map_);
 
-		FetchRequest *fetch_request = new FetchRequest(0, "test", 1, partition_offset_map_[1]);
-		fetch_request->PrintAll();
-		SendRequestHandler(node, fetch_request);
-		ReceiveResponseHandler(node, &response);
+		for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
+		{
+			if (po_it->second != -1)
+				continue;
 
-		delete response;
+			std::vector<int> need_update_offset_partitions;
+			need_update_offset_partitions.push_back(po_it->first);
+
+			OffsetRequest *offset_request = new OffsetRequest(123, "test", need_update_offset_partitions);
+			offset_request->PrintAll();
+			SendRequestHandler(node, offset_request);
+			ReceiveResponseHandler(node, &response);
+			OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
+			po_it->second = offset_response->GetNewOffset();
+		}
+
+		while (true)
+		{
+			FetchRequest *fetch_request = new FetchRequest(0, "test", 1, partition_offset_map_[1]);
+			fetch_request->PrintAll();
+			SendRequestHandler(node, fetch_request);
+			ReceiveResponseHandler(node, &response);
+
+			delete response;
+		}
 	}
 
 	return 0;
@@ -149,7 +175,6 @@ int Network::ReceiveResponseHandler(Node *node, Response **response)
 	if (ret == 0)
 	{
 		(*response)->PrintAll();
-		delete last_request_;
 	}
 
 	return 0;
@@ -158,9 +183,8 @@ int Network::ReceiveResponseHandler(Node *node, Response **response)
 int Network::SendRequestHandler(Node *node, Request *request)
 {
 	Send(node->fd_, request);
-
-	last_request_ = request;
-
+	last_correlation_id_ = GetCorrelationIdFromRequest(request);
+	last_api_key_ = GetApiKeyFromRequest(request);
 	return 0;
 }
 
@@ -174,7 +198,7 @@ int Network::Receive(int fd, Response **res)
 
 	int response_size = Util::NetBytesToInt(buf);
 	int correlation_id = Util::NetBytesToInt(buf + 4); 
-	int api_key = GetApiKeyFromResponse(last_request_, correlation_id);
+	int api_key = GetApiKeyFromResponse(correlation_id);
 	if (api_key < 0)
 	{
 		// not match
@@ -227,6 +251,12 @@ int Network::Receive(int fd, Response **res)
 			*res = offset_fetch_response;
 			break;
 		}
+		case ApiKey::OffsetRequest:
+		{
+			OffsetResponse *offset_response = new OffsetResponse(&p);
+			*res = offset_response;
+			break;
+		}
 	}
 
 	return 0;
@@ -237,32 +267,6 @@ int Network::Send(int fd, Request *request)
 	int packet_size = request->CountSize() + 4;
 	char buf[2048];
 	char *p = buf;
-
-#if 0
-	switch(request->api_key_)
-	{
-		case ApiKey::MetadataRequest:
-		{
-			request->Package(&p);
-			break;
-		}
-		case ApiKey::GroupCoordinatorRequest:
-		{
-			request->Package(&p);
-			break;
-		}
-		case ApiKey::JoinGroupRequest:
-		{
-			request->Package(&p);
-			break;
-		}
-		case ApiKey::SyncGroupRequest:
-		{
-			request->Package(&p);
-			break;
-		}
-	}
-#endif
 
 	request->Package(&p);
 
@@ -284,15 +288,25 @@ int Network::Send(int fd, Request *request)
 	return 0;
 }
 
-short Network::GetApiKeyFromResponse(Request *last_request, int correlation_id)
+int Network::GetCorrelationIdFromRequest(Request *request)
 {
-	if (last_request->correlation_id_ != correlation_id)
+	return request->GetCorrelationId();
+}
+
+short Network::GetApiKeyFromRequest(Request *request)
+{
+	return request->GetApiKey();
+}
+
+short Network::GetApiKeyFromResponse(int correlation_id)
+{
+	if (last_correlation_id_ != correlation_id)
 	{
 		std::cout << "The correlation_id are not equal" << std::endl;
 		return -1;
 	}
 
-	return last_request->api_key_;
+	return last_api_key_;
 }
 
 int Network::PartitionAssignment()

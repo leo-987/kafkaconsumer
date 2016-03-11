@@ -19,6 +19,9 @@ public:
 	virtual void PrintAll();
 	virtual int Package(char **buf);
 
+	int GetCorrelationId();
+	short GetApiKey();
+
 	int   total_size_;		// exclude itself
 	short api_key_;
 	short api_version_;
@@ -137,41 +140,5 @@ public:
 	std::string member_id_;
 };
 
-//------------------------------FetchRequest
-class FetchRequest: public Request {
-public:
-	FetchRequest(int correlation_id, const std::string &topic_name, int partition, long fetch_offset);
-
-	virtual int CountSize();
-	virtual void PrintAll();
-	virtual int Package(char **buf);
-
-	int replica_id_;
-	int max_wait_time_;
-	int min_bytes_;
-	std::string topic_name_;
-	int partition_;
-	long fetch_offset_;
-	int max_bytes_;
-};
-
-//------------------------------OffsetFetchRequest
-class OffsetFetchRequest: public Request {
-public:
-	OffsetFetchRequest(int correlation_id, const std::string &group,
-			const std::string &topic, const std::vector<int> &partitions);
-
-	virtual int CountSize();
-	virtual void PrintAll();
-	virtual int Package(char **buf);
-
-	// XXX: ConsumerGroup [TopicName [Partition]]
-	std::string group_;
-	std::string topic_;
-	std::vector<int> partitions_;
-};
-
 #endif
-
-
 

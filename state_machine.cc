@@ -155,18 +155,3 @@ int StateMachine::StoppedConsumption(Event &event)
 
 	return 0;
 }
-
-int StateMachine::PushRequest(Node *node, Request *request)
-{
-	int fd = node->fd_;
-	network_->send_queues_[fd].Push(request);
-	return 0;
-}
-
-int StateMachine::PopResponse(Node *node, Response **response)
-{
-	int fd = node->fd_;
-	*response = network_->receive_queues_[fd].Pop();
-	return 0;
-}
-
