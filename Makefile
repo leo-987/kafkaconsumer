@@ -1,13 +1,18 @@
 CC = g++
 TARGET = main
-CXXFLAGS = -std=c++11 -c -Wall -g
+CXXFLAGS = -std=c++11 -c -Wall -g -I./protocol -I./utils
 LDFLAGS = -lev -lpthread
-SOURCES = main.cc kafka_client.cc network.cc request.cc response.cc\
-		  util.cc blocking_queue.cc node.cc net_util.cc partition.cc\
-		  member_assignment.cc message_set.cc\
-		  offset_request.cc offset_response.cc\
-		  offset_fetch_request.cc offset_fetch_response.cc\
-		  fetch_request.cc fetch_response.cc #state_machine.cc
+SOURCES = main.cc kafka_client.cc network.cc\
+		  utils/util.cc node.cc utils/net_util.cc\
+		  protocol/partition.cc\
+		  protocol/request.cc protocol/response.cc\
+		  protocol/member_assignment.cc protocol/message_set.cc\
+		  protocol/offset_request.cc protocol/offset_response.cc\
+		  protocol/offset_fetch_request.cc protocol/offset_fetch_response.cc\
+		  protocol/fetch_request.cc protocol/fetch_response.cc\
+		  protocol/metadata_request.cc protocol/metadata_response.cc\
+		  protocol/heartbeat_request.cc protocol/heartbeat_response.cc\
+		  protocol/sync_group_request.cc protocol/sync_group_response.cc 
 
 OBJECTS = $(SOURCES:.cc=.o)
 
@@ -21,4 +26,4 @@ $(TARGET): $(OBJECTS)
 	$(CC) -o $@ $(CXXFLAGS) $<
 
 clean:
-	rm -rf main *.o
+	rm -rf main *.o protocol/*.o utils/*.o

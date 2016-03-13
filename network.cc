@@ -5,15 +5,20 @@
 #include "kafka_client.h"
 #include "network.h"
 #include "util.h"
-#include "response.h"
 #include "net_util.h"
+#include "response.h"
 #include "offset_request.h"
 #include "offset_response.h"
 #include "offset_fetch_request.h"
 #include "offset_fetch_response.h"
-
 #include "fetch_request.h"
 #include "fetch_response.h"
+#include "metadata_request.h"
+#include "metadata_response.h"
+#include "heartbeat_request.h"
+#include "heartbeat_response.h"
+#include "sync_group_request.h"
+#include "sync_group_response.h"
 
 Network::Network()
 {
@@ -208,50 +213,50 @@ int Network::Receive(int fd, Response **res)
 	char *p = buf;
 	switch(api_key)
 	{
-		case ApiKey::MetadataRequest:
+		case ApiKey::MetadataType:
 		{
 			MetadataResponse *response = new MetadataResponse(&p);
 			*res = response;
 			break;
 		}
-		case ApiKey::GroupCoordinatorRequest:
+		case ApiKey::GroupCoordinatorType:
 		{
 
 			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(&p);
 			*res = response;
 			break;
 		}
-		case ApiKey::JoinGroupRequest:
+		case ApiKey::JoinGroupType:
 		{
 			JoinGroupResponse *response = new JoinGroupResponse(&p);
 			*res = response;
 			break;
 		}
-		case ApiKey::SyncGroupRequest:
+		case ApiKey::SyncGroupType:
 		{
 			SyncGroupResponse *response = new SyncGroupResponse(&p);
 			*res = response;
 			break;
 		}
-		case ApiKey::HeartbeatRequest:
+		case ApiKey::HeartbeatType:
 		{
 			HeartbeatResponse *heart_response = new HeartbeatResponse(&p);
 			*res = heart_response;
 			break;
 		}
-		case ApiKey::FetchRequest:
+		case ApiKey::FetchType:
 		{
 			FetchResponse *fetch_response = new FetchResponse(&p);
 			*res = fetch_response;
 			break;
 		}
-		case ApiKey::OffsetFetchRequest:
+		case ApiKey::OffsetFetchType:
 		{
 			OffsetFetchResponse *offset_fetch_response = new OffsetFetchResponse(&p);
 			*res = offset_fetch_response;
 			break;
 		}
-		case ApiKey::OffsetRequest:
+		case ApiKey::OffsetType:
 		{
 			OffsetResponse *offset_response = new OffsetResponse(&p);
 			*res = offset_response;

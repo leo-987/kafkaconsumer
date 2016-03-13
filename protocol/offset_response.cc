@@ -78,7 +78,7 @@ void TopicPartitionOR::PrintAll()
 }
 
 OffsetResponse::OffsetResponse(char **buf)
-	: Response(ApiKey::OffsetRequest, buf)
+	: Response(ApiKey::OffsetType, buf)
 {
 	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;

@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "member_assignment.h"
-#include "request_response_type.h"
 
 //------------------------------Head
 class Request {
@@ -81,64 +80,5 @@ public:
 	std::string protocol_type_;		// "consumer"
 	std::vector<GroupProtocol> group_protocols_;
 };
-
-//------------------------------MetadataRequest
-class MetadataRequest: public Request {
-public:
-	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
-			bool for_all_topic = false);
-
-	virtual int CountSize();
-	virtual void PrintAll();
-	virtual int Package(char **buf);
-
-	std::vector<std::string> topic_names_;
-};
-
-//------------------------------SyncGroupRequest
-class GroupAssignment {
-public:
-	GroupAssignment(const std::string &topic, const std::string &member_id,
-		const std::vector<int> &partitions);
-
-	int CountSize();
-	void PrintAll();
-	int Package(char **buf);
-
-	std::string member_id_;
-	MemberAssignment member_assignment_;	// bytes
-};
-
-class SyncGroupRequest: public Request {
-public:
-	SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
-			int generation_id, const std::string &member_id,
-			const std::map<std::string, std::vector<int>> &member_partition_map);
-
-	virtual int CountSize();
-	virtual void PrintAll();
-	virtual int Package(char **buf);
-
-	std::string group_id_;
-	int generation_id_;
-	std::string member_id_;
-	std::vector<GroupAssignment> group_assignment_;		// array
-};
-
-//------------------------------HeartbeatRequest
-class HeartbeatRequest: public Request {
-public:
-	HeartbeatRequest(int correlation_id, const std::string &group_id, int generation_id,
-					 const std::string &member_id);
-
-	virtual int CountSize();
-	virtual void PrintAll();
-	virtual int Package(char **buf);
-
-	std::string group_id_;
-	int generation_id_;
-	std::string member_id_;
-};
-
 #endif
 

@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "offset_request.h"
+#include "request_response_type.h"
 
 PartitionTime::PartitionTime(int32_t p, int64_t t, int32_t m)
 {
@@ -92,7 +93,7 @@ int TopicPartition::Package(char **buf)
 //------------------------------------
 OffsetRequest::OffsetRequest(int correlation_id, const std::string &topic,
 		const std::vector<int32_t> &p, int64_t time, int32_t replica_id)
-	: Request(ApiKey::OffsetRequest, correlation_id)
+	: Request(ApiKey::OffsetType, correlation_id)
 {
 	replica_id_ = replica_id;
 
@@ -141,6 +142,7 @@ int OffsetRequest::Package(char **buf)
 	{
 		tp_it->Package(buf);
 	}
+	return 0;
 }
 
 

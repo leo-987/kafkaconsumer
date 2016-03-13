@@ -3,8 +3,8 @@
 #include <string.h>
 
 #include "request.h"
-#include "util.h"
 #include "member_assignment.h"
+#include "request_response_type.h"
 
 //------------------------------Head
 Request::Request(short api_key, int correlation_id, short api_version, std::string client_id)
@@ -74,7 +74,7 @@ int Request::Package(char **buf)
 
 //------------------------------GroupCoordinatorRequest
 GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::string &group_id)
-	: Request(ApiKey::GroupCoordinatorRequest, correlation_id)
+	: Request(ApiKey::GroupCoordinatorType, correlation_id)
 {
 	group_id_ = group_id;
 	total_size_ = CountSize();
@@ -191,7 +191,7 @@ int GroupProtocol::Package(char **buf)
 JoinGroupRequest::JoinGroupRequest(int correlation_id,
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics)
-	: Request(ApiKey::JoinGroupRequest, correlation_id)
+	: Request(ApiKey::JoinGroupType, correlation_id)
 {
 	group_id_ = group_id;
 	session_timeout_ = 30000;
@@ -281,240 +281,4 @@ int JoinGroupRequest::Package(char **buf)
 	return 0;
 }
 
-//------------------------------MetadataRequest
-MetadataRequest::MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
-		bool for_all_topic)
-	: Request(ApiKey::MetadataRequest, correlation_id)
-{
-	if (for_all_topic == false)
-		topic_names_ = topic_names;
-	total_size_ = CountSize();
-}
-
-int MetadataRequest::CountSize()
-{
-	int size = Request::CountSize();
-	size += 4;
-	for (unsigned int i = 0; i < topic_names_.size(); i++)
-	{
-		size += 2 + topic_names_[i].length();
-	}
-
-	return size;
-}
-
-void MetadataRequest::PrintAll()
-{
-	std::cout << "-----MetadataRequest-----" << std::endl;
-	Request::PrintAll();
-	for (unsigned int i = 0; i < topic_names_.size(); i++)
-	{
-		std::cout << "topic name = " << topic_names_[i] << std::endl;
-	}
-	std::cout << "-------------------------" << std::endl;
-}
-
-int MetadataRequest::Package(char **buf)
-{
-	Request::Package(buf);
-
-	// topics array
-	int topic_names_size = htonl(topic_names_.size());
-	memcpy(*buf, &topic_names_size, 4);
-	(*buf) += 4;
-
-	for (auto tn_it = topic_names_.begin(); tn_it != topic_names_.end(); ++tn_it)
-	{
-		std::string &topic = *tn_it;
-		short topic_size = htons((short)topic.length());
-		memcpy(*buf, &topic_size, 2);
-		(*buf) += 2;
-		memcpy(*buf, topic.c_str(), topic.length());
-		(*buf) += topic.length();
-	}
-
-	return 0;
-}
-//------------------------------SyncGroupRequest
-GroupAssignment::GroupAssignment(const std::string &topic, const std::string &member_id,
-		const std::vector<int> &partitions)
-	: member_assignment_(topic, partitions)
-{
-	member_id_ = member_id;
-}
-
-int GroupAssignment::CountSize()
-{
-	int size = 0;
-	size += 2 + member_id_.length() +
-			4 + member_assignment_.CountSize();
-
-	return size;
-}
-
-void GroupAssignment::PrintAll()
-{
-	std::cout << "member id = " << member_id_ << std::endl;
-	member_assignment_.PrintAll();
-}
-
-int GroupAssignment::Package(char **buf)
-{
-	// member id
-	short member_id_size = htons((short)member_id_.length());
-	memcpy(*buf, &member_id_size, 2);
-	(*buf) += 2;
-	memcpy(*buf, member_id_.c_str(), member_id_.length());
-	(*buf) += member_id_.length();
-
-	// MemberAssignment bytes
-	int member_assignment_size = htonl(member_assignment_.CountSize());
-	memcpy(*buf, &member_assignment_size, 4);
-	(*buf) += 4;
-	member_assignment_.Package(buf);
-
-	return 0;
-}
-
-SyncGroupRequest::SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
-		int generation_id, const std::string &member_id,
-		const std::map<std::string, std::vector<int>> &member_partition_map)
-	: Request(ApiKey::SyncGroupRequest, correlation_id)
-{
-	group_id_ = group_id;
-	generation_id_ = generation_id;
-	member_id_ = member_id;
-
-	for (auto mp_it = member_partition_map.begin(); mp_it != member_partition_map.end(); ++mp_it)
-	{
-		GroupAssignment group_assignment(topic, mp_it->first, mp_it->second);
-		group_assignment_.push_back(group_assignment);
-	}
-
-	total_size_ = CountSize();
-}
-
-int SyncGroupRequest::CountSize()
-{
-	int size = Request::CountSize();
-	size += 2 + group_id_.length() +	// group id
-			4 +		// generation id
-			2 + member_id_.length(); 	// member id
-
-	// GroupAssignment array
-	size += 4;
-	for (auto ga_it = group_assignment_.begin(); ga_it != group_assignment_.end(); ++ga_it)
-	{
-		size += ga_it->CountSize();
-	}
-
-	return size;
-}
-
-void SyncGroupRequest::PrintAll()
-{
-	std::cout << "-----SyncGroupRequest-----" << std::endl;
-	Request::PrintAll();
-	std::cout << "group id = " << group_id_ << std::endl;
-	std::cout << "generation id = " << generation_id_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
-	for (auto ga_it = group_assignment_.begin(); ga_it != group_assignment_.end(); ++ga_it)
-	{
-		ga_it->PrintAll();
-	}
-	std::cout << "-------------------------" << std::endl;
-}
-
-int SyncGroupRequest::Package(char **buf)
-{
-	Request::Package(buf);
-
-	// group id
-	short group_id_size = htons((short)group_id_.length());
-	memcpy(*buf, &group_id_size, 2);
-	(*buf) += 2;
-	memcpy(*buf, group_id_.c_str(), group_id_.length());
-	(*buf) += group_id_.length();
-
-	// generation id
-	int generation_id = htonl(generation_id_);
-	memcpy(*buf, &generation_id, 4);
-	(*buf) += 4;
-
-	// member id
-	short member_id_size = htons((short)member_id_.length());
-	memcpy(*buf, &member_id_size, 2);
-	(*buf) += 2;
-	memcpy(*buf, member_id_.c_str(), member_id_.length());
-	(*buf) += member_id_.length();
-
-	// group assignment array
-	int group_assignment_size = htonl(group_assignment_.size());
-	memcpy(*buf, &group_assignment_size, 4);
-	(*buf) += 4;
-
-	for (auto ga_it = group_assignment_.begin(); ga_it != group_assignment_.end(); ++ga_it)
-	{
-		ga_it->Package(buf);
-	}
-
-	return 0;
-}
-
-//------------------------------HeartbeatRequest
-HeartbeatRequest::HeartbeatRequest(int correlation_id, const std::string &group_id,
-		int generation_id, const std::string &member_id)
-	: Request(ApiKey::HeartbeatRequest, correlation_id)
-{
-	group_id_ = group_id;
-	generation_id_ = generation_id;
-	member_id_ = member_id;
-
-	total_size_ = CountSize();
-}
-
-int HeartbeatRequest::CountSize()
-{
-	int size = Request::CountSize();
-	size += 2 + group_id_.length()+
-			4 +
-			2 + member_id_.length();
-
-	return size;
-}
-
-void HeartbeatRequest::PrintAll()
-{
-	std::cout << "-----HeartbeatRequest-----" << std::endl;
-	Request::PrintAll();
-	std::cout << "group id = " << group_id_ << std::endl;
-	std::cout << "generation id = " << generation_id_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
-	std::cout << "-------------------------" << std::endl;
-}
-
-int HeartbeatRequest::Package(char **buf)
-{
-	Request::Package(buf);
-
-	// group id
-	short group_id_size = htons((short)group_id_.length());
-	memcpy(*buf, &group_id_size, 2);
-	(*buf) += 2;
-	memcpy(*buf, group_id_.c_str(), group_id_.length());
-	(*buf) += group_id_.length();
-
-	// generation id
-	int generation_id = htonl(generation_id_);
-	memcpy(*buf, &generation_id, 4);
-	(*buf) += 4;
-
-	// member id
-	short member_id_size = htons((short)member_id_.length());
-	memcpy(*buf, &member_id_size, 2);
-	(*buf) += 2;
-	memcpy(*buf, member_id_.c_str(), member_id_.length());
-
-	return 0;
-}
 

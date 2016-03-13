@@ -5,6 +5,7 @@
 #include <string>
 
 #include "response.h"
+#include "message_set.h"
 
 class PartitionResponseInfo {
 public:

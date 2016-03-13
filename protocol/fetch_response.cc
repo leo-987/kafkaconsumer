@@ -85,7 +85,7 @@ void TopicPartitionResponseInfo::PrintAll()
 
 // [TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]] ThrottleTime
 FetchResponse::FetchResponse(char **buf)
-	: Response(ApiKey::FetchRequest, buf)
+	: Response(ApiKey::FetchType, buf)
 {
 	// what?
 	(*buf) += 4;

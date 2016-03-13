@@ -53,7 +53,6 @@ public:
 	int last_correlation_id_;
 	short last_api_key_;
 private:
-	bool run_;
 };
 
 #endif

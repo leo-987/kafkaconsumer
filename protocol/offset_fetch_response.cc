@@ -36,7 +36,7 @@ void PartitionOffsetInfo::PrintAll()
 }
 
 OffsetFetchResponse::OffsetFetchResponse(char **buf)
-	: Response(ApiKey::OffsetFetchRequest, buf)
+	: Response(ApiKey::OffsetFetchType, buf)
 {
 	// TODO: topics_array_size not used
 	int topics_array_size = Util::NetBytesToInt(*buf);

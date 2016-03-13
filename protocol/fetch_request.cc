@@ -1,9 +1,10 @@
 #include <iostream>
 
 #include "fetch_request.h"
+#include "request_response_type.h"
 
 FetchRequest::FetchRequest(int correlation_id, const std::string &topic_name, int partition, long fetch_offset)
-	: Request(ApiKey::FetchRequest, correlation_id, 1)
+	: Request(ApiKey::FetchType, correlation_id, 1)
 {
 	replica_id_ = -1;
 	max_wait_time_ = 500;

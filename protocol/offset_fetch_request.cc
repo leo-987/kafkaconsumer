@@ -1,10 +1,11 @@
 #include <iostream>
 
 #include "offset_fetch_request.h"
+#include "request_response_type.h"
 
 OffsetFetchRequest::OffsetFetchRequest(int correlation_id, const std::string &group,
 			const std::string &topic, const std::vector<int> &partitions)
-	: Request(ApiKey::OffsetFetchRequest, correlation_id, 1)
+	: Request(ApiKey::OffsetFetchType, correlation_id, 1)
 {
 	group_ = group;
 	topic_ = topic;
