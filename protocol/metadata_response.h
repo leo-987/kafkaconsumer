@@ -2,6 +2,7 @@
 #define _METADATA_RESPONSE_H_
 
 #include <string>
+#include <vector>
 
 #include "response.h"
 

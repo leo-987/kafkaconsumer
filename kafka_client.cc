@@ -11,31 +11,18 @@ void KafkaClient::SignalHandler(int signal)
 	run_ = false;
 }
 
-KafkaClient::KafkaClient()
+KafkaClient::KafkaClient(const std::string &brokers, const std::string &topic, const std::string &group)
 {
+	srand(time(NULL));
+	network_ = new Network(this, brokers);
+	//signal(SIGINT, KafkaClient::SignalHandler);
+	std::cout << "KafkaClient init OK!" << std::endl;
 }
 
 KafkaClient::~KafkaClient()
 {
 	//delete state_machine_;
 	//delete network_;
-}
-
-int KafkaClient::Init()
-{
-	srand(time(NULL));
-
-	std::string broker_list = "w-w1901.add.nbt.qihoo.net:9092,\
-							   w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
-
-	network_ = new Network();
-	network_->Init(this, broker_list);
-
-	//signal(SIGINT, KafkaClient::SignalHandler);
-	
-	std::cout << "KafkaClient init OK!" << std::endl;
-
-	return 0;
 }
 
 int KafkaClient::Start()

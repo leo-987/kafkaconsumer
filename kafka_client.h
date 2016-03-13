@@ -1,9 +1,6 @@
 #ifndef _KAFKA_CLIENT_H_
 #define _KAFKA_CLIENT_H_
 
-#include <map>
-#include <deque>
-
 #include "network.h"
 #include "request.h"
 #include "response.h"
@@ -12,20 +9,13 @@
 
 class KafkaClient {
 public:
-	KafkaClient();
+	KafkaClient(const std::string &brokers, const std::string &topic, const std::string &group);
 	~KafkaClient();
 
-	int Init();
 	int Start();
 	int Stop();
 
-	//int PushRequest(Node *node, Request *request);
-	//short PopResponse(Node *node, Response **response);
-
 	Network *network_;
-
-
-
 private:
 	static void SignalHandler(int signal);
 	static bool run_;

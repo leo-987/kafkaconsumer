@@ -3,8 +3,10 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 #include "request.h"
+#include "member_assignment.h"
 
 class GroupAssignment {
 public:

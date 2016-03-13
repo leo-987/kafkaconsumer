@@ -19,26 +19,14 @@
 #include "heartbeat_response.h"
 #include "sync_group_request.h"
 #include "sync_group_response.h"
+#include "join_group_request.h"
+#include "join_group_response.h"
+#include "group_coordinator_request.h"
+#include "group_coordinator_response.h"
 
-Network::Network()
+Network::Network(KafkaClient *client, const std::string &broker_list)
 {
-}
-
-Network::~Network()
-{
-	for (auto it = fds_.begin(); it != fds_.end(); ++it)
-		close(*it);
-
-	// delete nodes
-	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
-		delete it->second;
-
-	pthread_mutex_destroy(&queue_mutex_);
-}
-
-int Network::Init(KafkaClient *client, const std::string &broker_list)
-{
-	pthread_mutex_init(&queue_mutex_, NULL);
+	//pthread_mutex_init(&queue_mutex_, NULL);
 	client_ = client;
 
 	// create nodes
@@ -60,8 +48,18 @@ int Network::Init(KafkaClient *client, const std::string &broker_list)
 	//state_machine_->Init();
 
 	std::cout << "Network init OK!" << std::endl;
+}
 
-	return 0;
+Network::~Network()
+{
+	for (auto it = fds_.begin(); it != fds_.end(); ++it)
+		close(*it);
+
+	// delete nodes
+	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
+		delete it->second;
+
+	//pthread_mutex_destroy(&queue_mutex_);
 }
 
 int Network::Start()
