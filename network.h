@@ -6,7 +6,7 @@
 
 #include "request.h"
 #include "response.h"
-#include "node.h"
+#include "broker.h"
 #include "partition.h"
 
 class KafkaClient;
@@ -18,8 +18,8 @@ public:
 
 	int Start();
 	int Stop();
-	int ReceiveResponseHandler(Node *node, Response **response);
-	int SendRequestHandler(Node *node, Request *request);
+	int ReceiveResponseHandler(Broker *node, Response **response);
+	int SendRequestHandler(Broker *node, Request *request);
 	int Receive(int fd, Response **res);
 	int Send(int fd, Request *request);
 	short GetApiKeyFromResponse(int correlation_id);
@@ -31,12 +31,9 @@ public:
 
 	KafkaClient *client_;
 
-	std::vector<int> fds_;
-
 	//StateMachine *state_machine_;
 
-	// broker id -> Node
-	std::map<int, Node*> nodes_;
+
 	std::map<int, Partition> partitions_map_;
 	std::vector<std::string> members_;
 	std::map<std::string, std::vector<int>> member_partition_map_;
@@ -50,6 +47,8 @@ public:
 private:
 	std::string topic_;
 	std::string group_;
+	// broker id -> Node
+	std::map<int, Broker> brokers_;
 };
 
 #endif

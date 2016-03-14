@@ -6,7 +6,7 @@
 Broker::Broker(int fd, int id, const std::string &host, int port)
 {
 	fd_ = fd;
-	node_id_ = id;
+	id_ = id;
 	host_ = host;
 	port_ = port;
 }
@@ -14,7 +14,7 @@ Broker::Broker(int fd, int id, const std::string &host, int port)
 Broker::Broker(char **buf)
 {
 	// node id
-	node_id_ = Util::NetBytesToInt(*buf);
+	id_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
 	// host name
@@ -28,6 +28,10 @@ Broker::Broker(char **buf)
 	(*buf) += 4;
 }
 
+Broker::Broker()
+{
+}
+
 int Broker::CountSize()
 {
 	return 4 + 2 + host_.length() + 4;
@@ -36,7 +40,7 @@ int Broker::CountSize()
 void Broker::PrintAll()
 {
 	std::cout << "fd = " << fd_ << std::endl;
-	std::cout << "node id = " << node_id_ << std::endl;
+	std::cout << "id = " << id_ << std::endl;
 	std::cout << "host = " << host_ << std::endl;
 	std::cout << "port = " << port_ << std::endl;
 }

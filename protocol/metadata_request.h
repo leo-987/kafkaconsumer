@@ -10,6 +10,7 @@ public:
 	MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
 			bool for_all_topic = false);
 
+	virtual ~MetadataRequest() {}
 	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);

@@ -8,6 +8,7 @@
 class FetchRequest: public Request {
 public:
 	FetchRequest(int correlation_id, const std::string &topic_name, int partition, long fetch_offset);
+	virtual ~FetchRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

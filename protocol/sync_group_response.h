@@ -8,6 +8,7 @@ class SyncGroupResponse: public Response {
 public:
 	SyncGroupResponse(char **buf);
 
+	virtual ~SyncGroupResponse() {}
 	virtual int CountSize();
 	virtual void PrintAll();
 

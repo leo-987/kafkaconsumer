@@ -38,6 +38,7 @@ public:
 	OffsetRequest(int correlation_id, const std::string &topic,
 		const std::vector<int32_t> &p, int64_t time = -1, int32_t replica_id = -1);
 
+	virtual ~OffsetRequest() {}
 	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);

@@ -33,6 +33,7 @@ public:
 class OffsetResponse: public Response {
 public:
 	OffsetResponse(char **buf);
+	virtual ~OffsetResponse() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

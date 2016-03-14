@@ -26,6 +26,7 @@ public:
 	SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
 			int generation_id, const std::string &member_id,
 			const std::map<std::string, std::vector<int>> &member_partition_map);
+	virtual ~SyncGroupRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

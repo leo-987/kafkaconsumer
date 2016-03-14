@@ -28,7 +28,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 {
 	client_ = client;
 
-	// create nodes
+	// create brokers
 	int tmp_broker_id = -1;
 	std::vector<std::string> brokers = Util::Split(broker_list, ',');
 	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
@@ -38,16 +38,15 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
-		fds_.push_back(fd);
-		Node *node = new Node(fd, -1, host, port);
-		nodes_.insert({tmp_broker_id--, node});
+		Broker broker(fd, -1, host, port);
+		brokers_.insert({tmp_broker_id--, broker});
 	}
 
 	topic_ = topic;
 	group_ = group;
 
 	//pthread_mutex_init(&queue_mutex_, NULL);
-	//state_machine_ = new StateMachine(network_, nodes_);
+	//state_machine_ = new StateMachine(network_, brokers_);
 	//state_machine_->Init();
 
 	std::cout << "Network init OK!" << std::endl;
@@ -55,12 +54,12 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 
 Network::~Network()
 {
-	for (auto it = fds_.begin(); it != fds_.end(); ++it)
-		close(*it);
-
-	// delete nodes
-	for (auto it = nodes_.begin(); it != nodes_.end(); ++it)
-		delete it->second;
+	// close socket and delete brokers
+	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
+	{
+		close(it->second.fd_);
+		//delete it->second;
+	}
 
 	//pthread_mutex_destroy(&queue_mutex_);
 }
@@ -71,26 +70,28 @@ int Network::Start()
 
 	std::vector<std::string> topics({topic_});
 	MetadataRequest *metadata_request = new MetadataRequest(2, topics);
-	// Random select a node
-	auto it = nodes_.begin();
-	std::advance(it, rand() % nodes_.size());
-	Node *node = it->second;
-	SendRequestHandler(node, metadata_request);
-	ReceiveResponseHandler(node, &response);
+	// Random select a broker
+	auto it = brokers_.begin();
+	std::advance(it, rand() % brokers_.size());
+	Broker *broker = &(it->second);
+	SendRequestHandler(broker, metadata_request);
+	ReceiveResponseHandler(broker, &response);
 	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
-	// insert new node
-	for (auto n_it = nodes_.begin(); n_it != nodes_.end(); ++n_it)
+
+	// insert new broker
+	for (auto n_it = brokers_.begin(); n_it != brokers_.end(); ++n_it)
 	{
-		Node *node = n_it->second;
-		int broker_id = meta_response->GetBrokerIdFromHostname(node->host_);
-		node->id_ = broker_id;
-		nodes_.insert({broker_id, node});
+		Broker b = n_it->second;
+		int broker_id = meta_response->GetBrokerIdFromHostname(b.host_);
+		b.id_ = broker_id;
+		brokers_.insert({broker_id, b});
 	}
-	// delete old node
-	for (auto n_it = nodes_.begin(); n_it != nodes_.end(); /* NULL */)
+
+	// delete old broker
+	for (auto n_it = brokers_.begin(); n_it != brokers_.end(); /* NULL */)
 	{
 		if (n_it->first < 0)
-			n_it = nodes_.erase(n_it);
+			n_it = brokers_.erase(n_it);
 		else
 			++n_it;
 	}
@@ -101,42 +102,48 @@ int Network::Start()
 		Partition partition(pm_it->partition_id_, pm_it->leader_);
 		partitions_map_.insert({partition.id_, partition});
 	}
-	
+	delete response;
 
 	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, group_);
-	SendRequestHandler(node, group_request);
-	ReceiveResponseHandler(node, &response);
+	SendRequestHandler(broker, group_request);
+	ReceiveResponseHandler(broker, &response);
 	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
-	node = nodes_[group_response->coordinator_id_];
+	broker = &(brokers_[group_response->coordinator_id_]);
+	delete response;
 	
+
 	JoinGroupRequest *join_request = new JoinGroupRequest(0, group_, "", topics);
-	SendRequestHandler(node, join_request);
-	ReceiveResponseHandler(node, &response);
+	SendRequestHandler(broker, join_request);
+	ReceiveResponseHandler(broker, &response);
 	JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
 	generation_id_ = join_response->GetGenerationId();
 	member_id_ = join_response->GetMemberId();
 	members_ = join_response->GetAllMembers();
 	PartitionAssignment();
+	delete response;
 
 
 	SyncGroupRequest *sync_request = new SyncGroupRequest(0, topic_, group_, generation_id_,
 			member_id_, member_partition_map_);
 	sync_request->PrintAll();
-	SendRequestHandler(node, sync_request);
-	ReceiveResponseHandler(node, &response);
+	SendRequestHandler(broker, sync_request);
+	ReceiveResponseHandler(broker, &response);
+	delete response;
 
 	HeartbeatRequest *hear_request = new HeartbeatRequest(1, group_, generation_id_, member_id_);
 	hear_request->PrintAll();
-	SendRequestHandler(node, hear_request);
-	ReceiveResponseHandler(node, &response);
+	SendRequestHandler(broker, hear_request);
+	ReceiveResponseHandler(broker, &response);
+	delete response;
 
 	std::vector<int> partitions({1});
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(1, group_, topic_, partitions);
 	offset_fetch_request->PrintAll();
-	SendRequestHandler(node, offset_fetch_request);
-	ReceiveResponseHandler(node, &response);
+	SendRequestHandler(broker, offset_fetch_request);
+	ReceiveResponseHandler(broker, &response);
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
 	offset_fetch_response->ParseOffset(partition_offset_map_);
+	delete response;
 
 	for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
 	{
@@ -148,8 +155,8 @@ int Network::Start()
 
 		OffsetRequest *offset_request = new OffsetRequest(123, topic_, need_update_offset_partitions);
 		offset_request->PrintAll();
-		SendRequestHandler(node, offset_request);
-		ReceiveResponseHandler(node, &response);
+		SendRequestHandler(broker, offset_request);
+		ReceiveResponseHandler(broker, &response);
 		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
 		po_it->second = offset_response->GetNewOffset();
 	}
@@ -158,9 +165,8 @@ int Network::Start()
 	{
 		FetchRequest *fetch_request = new FetchRequest(0, topic_, 1, partition_offset_map_[1]);
 		fetch_request->PrintAll();
-		SendRequestHandler(node, fetch_request);
-		ReceiveResponseHandler(node, &response);
-
+		SendRequestHandler(broker, fetch_request);
+		ReceiveResponseHandler(broker, &response);
 		delete response;
 	}
 
@@ -172,9 +178,9 @@ int Network::Stop()
 	return 0;
 }
 
-int Network::ReceiveResponseHandler(Node *node, Response **response)
+int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 {
-	int ret = Receive(node->fd_, response);
+	int ret = Receive(broker->fd_, response);
 	if (ret == 0)
 	{
 		(*response)->PrintAll();
@@ -183,9 +189,9 @@ int Network::ReceiveResponseHandler(Node *node, Response **response)
 	return 0;
 }
 
-int Network::SendRequestHandler(Node *node, Request *request)
+int Network::SendRequestHandler(Broker *broker, Request *request)
 {
-	Send(node->fd_, request);
+	Send(broker->fd_, request);
 	last_correlation_id_ = GetCorrelationIdFromRequest(request);
 	last_api_key_ = GetApiKeyFromRequest(request);
 	return 0;

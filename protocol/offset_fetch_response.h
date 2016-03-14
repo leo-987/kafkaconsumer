@@ -23,6 +23,8 @@ class OffsetFetchResponse: public Response {
 public:
 	OffsetFetchResponse(char **buf);
 
+	virtual ~OffsetFetchResponse() {}
+
 	virtual int CountSize();
 	virtual void PrintAll();
 

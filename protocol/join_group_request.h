@@ -35,6 +35,8 @@ public:
 		const std::string &group_id, const std::string member_id,
 		const std::vector<std::string> &topics);
 
+	virtual ~JoinGroupRequest() {}
+
 	virtual int CountSize();
 	virtual void PrintAll();
 	virtual int Package(char **buf);

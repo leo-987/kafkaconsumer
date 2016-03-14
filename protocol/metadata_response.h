@@ -58,6 +58,8 @@ class MetadataResponse: public Response {
 public:
 	MetadataResponse(char **buf);
 
+	virtual ~MetadataResponse() {}
+
 	virtual int CountSize();
 	virtual void PrintAll();
 

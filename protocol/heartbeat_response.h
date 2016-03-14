@@ -6,6 +6,7 @@
 class HeartbeatResponse: public Response {
 public:
 	HeartbeatResponse(char **buf);
+	virtual ~HeartbeatResponse() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

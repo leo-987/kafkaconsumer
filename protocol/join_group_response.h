@@ -24,6 +24,8 @@ public:
 			const std::string &member_id, const std::vector<Member> &members);
 
 	JoinGroupResponse(char **buf);
+	virtual ~JoinGroupResponse() {}
+
 	std::vector<std::string> GetAllMembers();
 
 	virtual int CountSize();

@@ -225,7 +225,7 @@ int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 	{
 		if (b_it->host_ == hostname)
-			return b_it->node_id_;
+			return b_it->id_;
 	}
 
 	return -1;

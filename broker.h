@@ -5,6 +5,7 @@
 
 class Broker {
 public:
+	Broker();
 	Broker(int fd, int id, const std::string &host, int port);
 	Broker(char **buf);
 
@@ -12,7 +13,7 @@ public:
 	void PrintAll();
 
 	int fd_;
-	int node_id_;
+	int id_;
 	std::string host_;
 	int port_;
 };

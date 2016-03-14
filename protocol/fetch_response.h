@@ -36,6 +36,7 @@ public:
 class FetchResponse: public Response {
 public:
 	FetchResponse(char **buf);
+	virtual ~FetchResponse() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

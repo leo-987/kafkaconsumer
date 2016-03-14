@@ -8,6 +8,7 @@
 class GroupCoordinatorRequest: public Request {
 public:
 	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
+	virtual ~GroupCoordinatorRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();

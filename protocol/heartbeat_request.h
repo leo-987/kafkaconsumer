@@ -9,6 +9,7 @@ class HeartbeatRequest: public Request {
 public:
 	HeartbeatRequest(int correlation_id, const std::string &group_id, int generation_id,
 					 const std::string &member_id);
+	virtual ~HeartbeatRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
