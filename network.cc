@@ -24,9 +24,8 @@
 #include "group_coordinator_request.h"
 #include "group_coordinator_response.h"
 
-Network::Network(KafkaClient *client, const std::string &broker_list)
+Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
-	//pthread_mutex_init(&queue_mutex_, NULL);
 	client_ = client;
 
 	// create nodes
@@ -44,6 +43,10 @@ Network::Network(KafkaClient *client, const std::string &broker_list)
 		nodes_.insert({tmp_broker_id--, node});
 	}
 
+	topic_ = topic;
+	group_ = group;
+
+	//pthread_mutex_init(&queue_mutex_, NULL);
 	//state_machine_ = new StateMachine(network_, nodes_);
 	//state_machine_->Init();
 
@@ -64,104 +67,101 @@ Network::~Network()
 
 int Network::Start()
 {
-	//while(1)
+	Response *response;
+
+	std::vector<std::string> topics({topic_});
+	MetadataRequest *metadata_request = new MetadataRequest(2, topics);
+	// Random select a node
+	auto it = nodes_.begin();
+	std::advance(it, rand() % nodes_.size());
+	Node *node = it->second;
+	SendRequestHandler(node, metadata_request);
+	ReceiveResponseHandler(node, &response);
+	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
+	// insert new node
+	for (auto n_it = nodes_.begin(); n_it != nodes_.end(); ++n_it)
 	{
-		Response *response;
+		Node *node = n_it->second;
+		int broker_id = meta_response->GetBrokerIdFromHostname(node->host_);
+		node->id_ = broker_id;
+		nodes_.insert({broker_id, node});
+	}
+	// delete old node
+	for (auto n_it = nodes_.begin(); n_it != nodes_.end(); /* NULL */)
+	{
+		if (n_it->first < 0)
+			n_it = nodes_.erase(n_it);
+		else
+			++n_it;
+	}
+	std::vector<PartitionMetadata> &partition_metadata =
+						meta_response->topic_metadata_[0].partition_metadata_;
+	for (auto pm_it = partition_metadata.begin(); pm_it != partition_metadata.end(); ++pm_it)
+	{
+		Partition partition(pm_it->partition_id_, pm_it->leader_);
+		partitions_map_.insert({partition.id_, partition});
+	}
+	
 
-		std::vector<std::string> topics({"test"});
-		MetadataRequest *metadata_request = new MetadataRequest(2, topics);
-		// Random select a node
-		auto it = nodes_.begin();
-		std::advance(it, rand() % nodes_.size());
-		Node *node = it->second;
-		SendRequestHandler(node, metadata_request);
+	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, group_);
+	SendRequestHandler(node, group_request);
+	ReceiveResponseHandler(node, &response);
+	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
+	node = nodes_[group_response->coordinator_id_];
+	
+	JoinGroupRequest *join_request = new JoinGroupRequest(0, group_, "", topics);
+	SendRequestHandler(node, join_request);
+	ReceiveResponseHandler(node, &response);
+	JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
+	generation_id_ = join_response->GetGenerationId();
+	member_id_ = join_response->GetMemberId();
+	members_ = join_response->GetAllMembers();
+	PartitionAssignment();
+
+
+	SyncGroupRequest *sync_request = new SyncGroupRequest(0, topic_, group_, generation_id_,
+			member_id_, member_partition_map_);
+	sync_request->PrintAll();
+	SendRequestHandler(node, sync_request);
+	ReceiveResponseHandler(node, &response);
+
+	HeartbeatRequest *hear_request = new HeartbeatRequest(1, group_, generation_id_, member_id_);
+	hear_request->PrintAll();
+	SendRequestHandler(node, hear_request);
+	ReceiveResponseHandler(node, &response);
+
+	std::vector<int> partitions({1});
+	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(1, group_, topic_, partitions);
+	offset_fetch_request->PrintAll();
+	SendRequestHandler(node, offset_fetch_request);
+	ReceiveResponseHandler(node, &response);
+	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
+	offset_fetch_response->ParseOffset(partition_offset_map_);
+
+	for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
+	{
+		if (po_it->second != -1)
+			continue;
+
+		std::vector<int> need_update_offset_partitions;
+		need_update_offset_partitions.push_back(po_it->first);
+
+		OffsetRequest *offset_request = new OffsetRequest(123, topic_, need_update_offset_partitions);
+		offset_request->PrintAll();
+		SendRequestHandler(node, offset_request);
 		ReceiveResponseHandler(node, &response);
-		MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
-		// insert new node
-		for (auto n_it = nodes_.begin(); n_it != nodes_.end(); ++n_it)
-		{
-			Node *node = n_it->second;
-			int broker_id = meta_response->GetBrokerIdFromHostname(node->host_);
-			node->id_ = broker_id;
-			nodes_.insert({broker_id, node});
-		}
-		// delete old node
-		for (auto n_it = nodes_.begin(); n_it != nodes_.end(); /* NULL */)
-		{
-			if (n_it->first < 0)
-				n_it = nodes_.erase(n_it);
-			else
-				++n_it;
-		}
-		std::vector<PartitionMetadata> &partition_metadata =
-							meta_response->topic_metadata_[0].partition_metadata_;
-		for (auto pm_it = partition_metadata.begin(); pm_it != partition_metadata.end(); ++pm_it)
-		{
-			Partition partition(pm_it->partition_id_, pm_it->leader_);
-			partitions_map_.insert({partition.id_, partition});
-		}
-		
+		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
+		po_it->second = offset_response->GetNewOffset();
+	}
 
-		GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(0, "group");
-		SendRequestHandler(node, group_request);
-		ReceiveResponseHandler(node, &response);
-		GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
-		node = nodes_[group_response->coordinator_id_];
-		
-		JoinGroupRequest *join_request = new JoinGroupRequest(0, "group", "", topics);
-		SendRequestHandler(node, join_request);
-		ReceiveResponseHandler(node, &response);
-		JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
-		generation_id_ = join_response->GetGenerationId();
-		member_id_ = join_response->GetMemberId();
-		members_ = join_response->GetAllMembers();
-		PartitionAssignment();
-
-
-		SyncGroupRequest *sync_request = new SyncGroupRequest(0, "test", "group", generation_id_,
-				member_id_, member_partition_map_);
-		sync_request->PrintAll();
-		SendRequestHandler(node, sync_request);
+	while (true)
+	{
+		FetchRequest *fetch_request = new FetchRequest(0, topic_, 1, partition_offset_map_[1]);
+		fetch_request->PrintAll();
+		SendRequestHandler(node, fetch_request);
 		ReceiveResponseHandler(node, &response);
 
-		HeartbeatRequest *hear_request = new HeartbeatRequest(1, "group", generation_id_, member_id_);
-		hear_request->PrintAll();
-		SendRequestHandler(node, hear_request);
-		ReceiveResponseHandler(node, &response);
-
-		std::vector<int> partitions({1});
-		OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(1, "group", "test", partitions);
-		offset_fetch_request->PrintAll();
-		SendRequestHandler(node, offset_fetch_request);
-		ReceiveResponseHandler(node, &response);
-		OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
-		offset_fetch_response->ParseOffset(partition_offset_map_);
-
-		for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
-		{
-			if (po_it->second != -1)
-				continue;
-
-			std::vector<int> need_update_offset_partitions;
-			need_update_offset_partitions.push_back(po_it->first);
-
-			OffsetRequest *offset_request = new OffsetRequest(123, "test", need_update_offset_partitions);
-			offset_request->PrintAll();
-			SendRequestHandler(node, offset_request);
-			ReceiveResponseHandler(node, &response);
-			OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
-			po_it->second = offset_response->GetNewOffset();
-		}
-
-		while (true)
-		{
-			FetchRequest *fetch_request = new FetchRequest(0, "test", 1, partition_offset_map_[1]);
-			fetch_request->PrintAll();
-			SendRequestHandler(node, fetch_request);
-			ReceiveResponseHandler(node, &response);
-
-			delete response;
-		}
+		delete response;
 	}
 
 	return 0;

@@ -5,10 +5,12 @@
 #include <vector>
 
 #include "response.h"
+#include "broker.h"
 
+#if 0
 class Broker {
 public:
-	Broker(int node_id, const std::string &host, int port);
+	Broker(int fd, int node_id, const std::string &host, int port);
 	Broker(char **buf);
 
 	int CountSize();
@@ -18,6 +20,7 @@ public:
 	std::string host_;
 	int port_;
 };
+#endif
 
 class PartitionMetadata {
 public:

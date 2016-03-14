@@ -3,7 +3,8 @@
 #include "metadata_response.h"
 #include "util.h"
 
-Broker::Broker(int node_id, const std::string &host, int port)
+#if 0
+Broker::Broker(int fd, int node_id, const std::string &host, int port)
 {
 	node_id_ = node_id;
 	host_ = host;
@@ -38,6 +39,7 @@ void Broker::PrintAll()
 	std::cout << "host = " << host_ << std::endl;
 	std::cout << "port = " << port_ << std::endl;
 }
+#endif
 
 PartitionMetadata::PartitionMetadata(short error_code, int partition_id, int leader,
 		const std::vector<int> &replicas, const std::vector<int> &isr)

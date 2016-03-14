@@ -13,7 +13,7 @@ class KafkaClient;
 
 class Network {
 public:
-	Network(KafkaClient *client, const std::string &broker_list);
+	Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group);
 	~Network();
 
 	int Start();
@@ -48,6 +48,8 @@ public:
 	int last_correlation_id_;
 	short last_api_key_;
 private:
+	std::string topic_;
+	std::string group_;
 };
 
 #endif

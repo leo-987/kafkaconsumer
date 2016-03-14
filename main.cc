@@ -15,3 +15,5 @@ int main()
 
     return 0;
 }
+
+// TODO:merge Broker and Node in network.cc

@@ -1,6 +1,6 @@
 CC = g++
 TARGET = main
-CXXFLAGS = -std=c++11 -c -Wall -g -I./protocol -I./utils
+CXXFLAGS = -std=c++11 -c -Wall -g -I./ -I./protocol -I./utils
 LDFLAGS = 
 SOURCES = main.cc kafka_client.cc network.cc\
 		  utils/util.cc node.cc utils/net_util.cc\
@@ -14,7 +14,8 @@ SOURCES = main.cc kafka_client.cc network.cc\
 		  protocol/heartbeat_request.cc protocol/heartbeat_response.cc\
 		  protocol/sync_group_request.cc protocol/sync_group_response.cc\
 		  protocol/join_group_request.cc protocol/join_group_response.cc\
-		  protocol/group_coordinator_request.cc protocol/group_coordinator_response.cc 
+		  protocol/group_coordinator_request.cc protocol/group_coordinator_response.cc\
+		  broker.cc
 
 OBJECTS = $(SOURCES:.cc=.o)
 
