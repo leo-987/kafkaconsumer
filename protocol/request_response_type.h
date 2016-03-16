@@ -18,4 +18,8 @@ struct ApiKey {
 	static const short ListGroupsType       = 16;
 };
 
+struct ApiVersion {
+	static const short v0 = 0;
+	static const short v1 = 1;
+};
 #endif

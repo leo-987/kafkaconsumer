@@ -5,16 +5,17 @@
 #include <string>
 
 #include "request.h"
+#include "request_response_type.h"
 
 class OffsetFetchRequest: public Request {
 public:
-	OffsetFetchRequest(int correlation_id, const std::string &group,
-			const std::string &topic, const std::vector<int> &partitions);
+	OffsetFetchRequest(const std::string &group,
+			const std::string &topic, const std::vector<int> &partitions, int correlation_id = ApiKey::OffsetFetchType);
 	virtual ~OffsetFetchRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	// XXX: ConsumerGroup [TopicName [Partition]]
 	std::string group_;

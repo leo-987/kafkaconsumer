@@ -4,15 +4,16 @@
 #include <string>
 
 #include "request.h"
+#include "request_response_type.h"
 
 class GroupCoordinatorRequest: public Request {
 public:
-	GroupCoordinatorRequest(int correlation_id, const std::string &group_id);
+	GroupCoordinatorRequest(const std::string &group_id, int correlation_id = ApiKey::GroupCoordinatorType);
 	virtual ~GroupCoordinatorRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	std::string group_id_;
 };

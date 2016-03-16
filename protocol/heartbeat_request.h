@@ -4,16 +4,17 @@
 #include <string>
 
 #include "request.h"
+#include "request_response_type.h"
 
 class HeartbeatRequest: public Request {
 public:
-	HeartbeatRequest(int correlation_id, const std::string &group_id, int generation_id,
-					 const std::string &member_id);
+	HeartbeatRequest(const std::string &group_id, int generation_id,
+					 const std::string &member_id, int correlation_id = ApiKey::HeartbeatType);
 	virtual ~HeartbeatRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	std::string group_id_;
 	int generation_id_;

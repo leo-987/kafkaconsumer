@@ -13,7 +13,6 @@ StateMachine::StateMachine(Network *network, std::map<std::string, Node*> &nodes
 
 int StateMachine::Init()
 {
-	//signal(SIGINT, StateMachine::SignalHandler);
 	return 0;
 }
 

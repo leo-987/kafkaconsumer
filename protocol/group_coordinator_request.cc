@@ -1,9 +1,8 @@
 #include <iostream>
 
 #include "group_coordinator_request.h"
-#include "request_response_type.h"
 
-GroupCoordinatorRequest::GroupCoordinatorRequest(int correlation_id, const std::string &group_id)
+GroupCoordinatorRequest::GroupCoordinatorRequest(const std::string &group_id, int correlation_id)
 	: Request(ApiKey::GroupCoordinatorType, correlation_id)
 {
 	group_id_ = group_id;
@@ -24,7 +23,7 @@ void GroupCoordinatorRequest::PrintAll()
 	std::cout << "---------------------------------" << std::endl;
 }
 
-int GroupCoordinatorRequest::Package(char **buf)
+void GroupCoordinatorRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -33,7 +32,5 @@ int GroupCoordinatorRequest::Package(char **buf)
 	memcpy(*buf, &group_id_size, 2);
 	(*buf) += 2;
 	memcpy(*buf, group_id_.c_str(), group_id_.length());
-
-	return 0;
 }
 

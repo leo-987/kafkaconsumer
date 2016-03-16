@@ -7,6 +7,7 @@
 
 #include "request.h"
 #include "member_assignment.h"
+#include "request_response_type.h"
 
 class GroupAssignment {
 public:
@@ -15,7 +16,7 @@ public:
 
 	int CountSize();
 	void PrintAll();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	std::string member_id_;
 	MemberAssignment member_assignment_;	// bytes
@@ -23,14 +24,14 @@ public:
 
 class SyncGroupRequest: public Request {
 public:
-	SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
+	SyncGroupRequest(const std::string &topic, const std::string group_id,
 			int generation_id, const std::string &member_id,
-			const std::map<std::string, std::vector<int>> &member_partition_map);
+			const std::map<std::string, std::vector<int>> &member_partition_map, int correlation_id = ApiKey::SyncGroupType);
 	virtual ~SyncGroupRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	std::string group_id_;
 	int generation_id_;

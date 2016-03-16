@@ -5,13 +5,14 @@
 #include <string>
 
 #include "request.h"
+#include "request_response_type.h"
 
 class ProtocolMetadata {
 public:
 	ProtocolMetadata(const std::vector<std::string> &topics);
 
 	int CountSize();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	short version_;
 	std::vector<std::string> subscription_;
@@ -23,7 +24,7 @@ public:
 	GroupProtocol(const std::vector<std::string> &topics);
 
 	int CountSize();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	std::string assignment_strategy_;		// ProtocolName = range
 	ProtocolMetadata protocol_metadata_;	// byts
@@ -31,15 +32,14 @@ public:
 
 class JoinGroupRequest: public Request {
 public:
-	JoinGroupRequest(int correlation_id,
-		const std::string &group_id, const std::string member_id,
-		const std::vector<std::string> &topics);
+	JoinGroupRequest(const std::string &group_id, const std::string &member_id,
+		const std::vector<std::string> &topics, int correlation_id = ApiKey::JoinGroupType);
 
 	virtual ~JoinGroupRequest() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	std::string group_id_;
 	int session_timeout_;

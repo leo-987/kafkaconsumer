@@ -1,7 +1,6 @@
 #include <iostream>
 
 #include "offset_request.h"
-#include "request_response_type.h"
 
 PartitionTime::PartitionTime(int32_t p, int64_t t, int32_t m)
 {
@@ -22,7 +21,7 @@ void PartitionTime::PrintAll()
 	std::cout << "max number of offsets = " << max_number_of_offsets_ << std::endl;
 }
 
-int PartitionTime::Package(char **buf)
+void PartitionTime::Package(char **buf)
 {
 	int32_t partition = htonl(partition_);
 	memcpy(*buf, &partition, 4);
@@ -35,8 +34,6 @@ int PartitionTime::Package(char **buf)
 	int32_t max_number_of_offsets = htonl(max_number_of_offsets_);
 	memcpy(*buf, &max_number_of_offsets, 4);
 	(*buf) += 4;
-
-	return 0;
 }
 
 //------------------------------------
@@ -72,7 +69,7 @@ void TopicPartition::PrintAll()
 	}
 }
 
-int TopicPartition::Package(char **buf)
+void TopicPartition::Package(char **buf)
 {
 	short topic_len = htons((short)topic_.length());
 	memcpy(*buf, &topic_len, 2);
@@ -87,12 +84,11 @@ int TopicPartition::Package(char **buf)
 	{
 		pt_it->Package(buf);
 	}
-	return 0;
 }
 
 //------------------------------------
-OffsetRequest::OffsetRequest(int correlation_id, const std::string &topic,
-		const std::vector<int32_t> &p, int64_t time, int32_t replica_id)
+OffsetRequest::OffsetRequest(const std::string &topic,
+		const std::vector<int32_t> &p, int64_t time, int32_t replica_id, int correlation_id)
 	: Request(ApiKey::OffsetType, correlation_id)
 {
 	replica_id_ = replica_id;
@@ -127,7 +123,7 @@ void OffsetRequest::PrintAll()
 	std::cout << "-----------------------" << std::endl;
 }
 
-int OffsetRequest::Package(char **buf)
+void OffsetRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -142,7 +138,6 @@ int OffsetRequest::Package(char **buf)
 	{
 		tp_it->Package(buf);
 	}
-	return 0;
 }
 
 

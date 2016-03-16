@@ -11,7 +11,7 @@ public:
 
 	int CountSize();
 	void PrintAll();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	std::string topic_;
 	std::vector<int> partitions_;
@@ -25,7 +25,7 @@ public:
 	
 	int CountSize();
 	void PrintAll();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	short version_;
 	std::vector<PartitionAssignment> partition_assignment_;		// array

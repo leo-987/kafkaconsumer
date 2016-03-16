@@ -39,7 +39,7 @@ void Request::PrintAll()
 	std::cout << "client id = " << client_id_ << std::endl;
 }
 
-int Request::Package(char **buf)
+void Request::Package(char **buf)
 {
 	// total size
 	int request_size = htonl(total_size_);
@@ -67,7 +67,5 @@ int Request::Package(char **buf)
 	(*buf) += 2;
 	memcpy(*buf, client_id_.c_str(), client_id_.length());
 	(*buf) += client_id_.length();
-
-	return 0;
 }
 

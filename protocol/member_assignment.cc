@@ -48,7 +48,7 @@ void PartitionAssignment::PrintAll()
 	}
 }
 
-int PartitionAssignment::Package(char **buf)
+void PartitionAssignment::Package(char **buf)
 {
 	// topic
 	short topic_size = htons((short)topic_.length());
@@ -67,8 +67,6 @@ int PartitionAssignment::Package(char **buf)
 		memcpy(*buf, &partition, 4);
 		(*buf) += 4;
 	}
-
-	return 0;
 }
 
 MemberAssignment::MemberAssignment()
@@ -139,7 +137,7 @@ void MemberAssignment::PrintAll()
 	std::cout << "user data = " << user_data_ << std::endl;
 }
 
-int MemberAssignment::Package(char **buf)
+void MemberAssignment::Package(char **buf)
 {
 	// version
 	short version = htons(version_);
@@ -160,6 +158,4 @@ int MemberAssignment::Package(char **buf)
 	memcpy(*buf, &user_data_size, 4);
 	(*buf) += 4;
 	memcpy(*buf, user_data_.data(), user_data_.size());
-
-	return 0;
 }

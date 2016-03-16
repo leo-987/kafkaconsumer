@@ -1,7 +1,6 @@
 #include <iostream>
 
 #include "join_group_request.h"
-#include "request_response_type.h"
 
 
 ProtocolMetadata::ProtocolMetadata(const std::vector<std::string> &topics)
@@ -22,7 +21,7 @@ int ProtocolMetadata::CountSize()
 	return size;
 }
 
-int ProtocolMetadata::Package(char **buf)
+void ProtocolMetadata::Package(char **buf)
 {
 	// version
 	short version = htons(version_);
@@ -49,8 +48,6 @@ int ProtocolMetadata::Package(char **buf)
 	memcpy(*buf, &user_data_size, 4);
 	(*buf) += 4;
 	memcpy(*buf, user_data_.data(), user_data_.size());
-
-	return 0;
 }
 
 GroupProtocol::GroupProtocol(const std::vector<std::string> &topics)
@@ -65,7 +62,7 @@ int GroupProtocol::CountSize()
 		   4 /* bytes */ + protocol_metadata_.CountSize();
 }
 
-int GroupProtocol::Package(char **buf)
+void GroupProtocol::Package(char **buf)
 {
 	// assignment strategy
 	short assignment_strategy_size = htons((short)assignment_strategy_.length());
@@ -80,13 +77,10 @@ int GroupProtocol::Package(char **buf)
 	(*buf) += 4;
 
 	protocol_metadata_.Package(buf);
-
-	return 0;
 }
 
-JoinGroupRequest::JoinGroupRequest(int correlation_id,
-		const std::string &group_id, const std::string member_id,
-		const std::vector<std::string> &topics)
+JoinGroupRequest::JoinGroupRequest(const std::string &group_id, const std::string &member_id,
+			const std::vector<std::string> &topics, int correlation_id)
 	: Request(ApiKey::JoinGroupType, correlation_id)
 {
 	group_id_ = group_id;
@@ -134,7 +128,7 @@ void JoinGroupRequest::PrintAll()
 	std::cout << "--------------------------" << std::endl;
 }
 
-int JoinGroupRequest::Package(char **buf)
+void JoinGroupRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -173,8 +167,6 @@ int JoinGroupRequest::Package(char **buf)
 	{
 		gp_it->Package(buf);
 	}
-
-	return 0;
 }
 
 

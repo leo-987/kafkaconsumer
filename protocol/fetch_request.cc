@@ -3,8 +3,8 @@
 #include "fetch_request.h"
 #include "request_response_type.h"
 
-FetchRequest::FetchRequest(int correlation_id, const std::string &topic_name, int partition, long fetch_offset)
-	: Request(ApiKey::FetchType, correlation_id, 1)
+FetchRequest::FetchRequest(const std::string &topic_name, int partition, long fetch_offset, int correlation_id)
+	: Request(ApiKey::FetchType, correlation_id, ApiVersion::v1)
 {
 	replica_id_ = -1;
 	max_wait_time_ = 500;
@@ -40,7 +40,7 @@ void FetchRequest::PrintAll()
 	std::cout << "----------------------" << std::endl;
 }
 
-int FetchRequest::Package(char **buf)
+void FetchRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -91,7 +91,5 @@ int FetchRequest::Package(char **buf)
 	int max_bytes = htonl(max_bytes_);
 	memcpy(*buf, &max_bytes, 4);
 	(*buf) += 4;
-
-	return 0;
 }
 

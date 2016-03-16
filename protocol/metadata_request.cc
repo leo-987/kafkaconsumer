@@ -1,14 +1,17 @@
 #include <iostream>
 
 #include "metadata_request.h"
-#include "request_response_type.h"
 
-MetadataRequest::MetadataRequest(int correlation_id, const std::vector<std::string> &topic_names,
-		bool for_all_topic)
+MetadataRequest::MetadataRequest(const std::vector<std::string> &topics, int correlation_id)
 	: Request(ApiKey::MetadataType, correlation_id)
 {
-	if (for_all_topic == false)
-		topic_names_ = topic_names;
+	topics_ = topics;
+	total_size_ = CountSize();
+}
+
+MetadataRequest::MetadataRequest(int correlation_id)
+	: Request(ApiKey::MetadataType, correlation_id)
+{
 	total_size_ = CountSize();
 }
 
@@ -16,11 +19,8 @@ int MetadataRequest::CountSize()
 {
 	int size = Request::CountSize();
 	size += 4;
-	for (unsigned int i = 0; i < topic_names_.size(); i++)
-	{
-		size += 2 + topic_names_[i].length();
-	}
-
+	for (auto t_it = topics_.begin(); t_it != topics_.end(); ++t_it)
+		size += 2 + t_it->length();
 	return size;
 }
 
@@ -28,31 +28,24 @@ void MetadataRequest::PrintAll()
 {
 	std::cout << "-----MetadataRequest-----" << std::endl;
 	Request::PrintAll();
-	for (unsigned int i = 0; i < topic_names_.size(); i++)
-	{
-		std::cout << "topic name = " << topic_names_[i] << std::endl;
-	}
+	for (auto t_it = topics_.begin(); t_it != topics_.end(); ++t_it)
+		std::cout << "topic name = " << *t_it << std::endl;
 	std::cout << "-------------------------" << std::endl;
 }
 
-int MetadataRequest::Package(char **buf)
+void MetadataRequest::Package(char **buf)
 {
 	Request::Package(buf);
-
-	// topics array
-	int topic_names_size = htonl(topic_names_.size());
-	memcpy(*buf, &topic_names_size, 4);
+	
+	int array_size = htonl(topics_.size());
+	memcpy(*buf, &array_size, 4);
 	(*buf) += 4;
-
-	for (auto tn_it = topic_names_.begin(); tn_it != topic_names_.end(); ++tn_it)
+	for (auto t_it = topics_.begin(); t_it != topics_.end(); ++t_it)
 	{
-		std::string &topic = *tn_it;
-		short topic_size = htons((short)topic.length());
-		memcpy(*buf, &topic_size, 2);
+		short topic_len = htons((short)t_it->length());
+		memcpy(*buf, &topic_len, 2);
 		(*buf) += 2;
-		memcpy(*buf, topic.c_str(), topic.length());
-		(*buf) += topic.length();
+		memcpy(*buf, t_it->c_str(), t_it->length());
+		(*buf) += t_it->length();
 	}
-
-	return 0;
 }

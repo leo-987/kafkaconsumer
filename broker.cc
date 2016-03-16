@@ -3,6 +3,10 @@
 #include "broker.h"
 #include "util.h"
 
+Broker::Broker()
+{
+}
+
 Broker::Broker(int fd, int id, const std::string &host, int port)
 {
 	fd_ = fd;
@@ -26,10 +30,6 @@ Broker::Broker(char **buf)
 	// port
 	port_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-}
-
-Broker::Broker()
-{
 }
 
 int Broker::CountSize()

@@ -1,10 +1,9 @@
 #include <iostream>
 
 #include "heartbeat_request.h"
-#include "request_response_type.h"
 
-HeartbeatRequest::HeartbeatRequest(int correlation_id, const std::string &group_id,
-		int generation_id, const std::string &member_id)
+HeartbeatRequest::HeartbeatRequest(const std::string &group_id,
+		int generation_id, const std::string &member_id, int correlation_id)
 	: Request(ApiKey::HeartbeatType, correlation_id)
 {
 	group_id_ = group_id;
@@ -34,7 +33,7 @@ void HeartbeatRequest::PrintAll()
 	std::cout << "-------------------------" << std::endl;
 }
 
-int HeartbeatRequest::Package(char **buf)
+void HeartbeatRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -55,6 +54,4 @@ int HeartbeatRequest::Package(char **buf)
 	memcpy(*buf, &member_id_size, 2);
 	(*buf) += 2;
 	memcpy(*buf, member_id_.c_str(), member_id_.length());
-
-	return 0;
 }

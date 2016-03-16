@@ -11,6 +11,13 @@
 
 class KafkaClient;
 
+enum class Event {
+	STARTUP,
+	JOIN_REQUEST_WITH_EMPTY_CONSUMER_ID,
+	HEARTBEAT,
+	SENDER_STOPPED,
+};
+
 class Network {
 public:
 	Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group);
@@ -26,9 +33,6 @@ public:
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf); 
 
-	int GetCorrelationIdFromRequest(Request *request);
-	short GetApiKeyFromRequest(Request *request);
-
 	KafkaClient *client_;
 
 	//StateMachine *state_machine_;
@@ -42,9 +46,20 @@ public:
 	int generation_id_;
 	std::string member_id_;
 
+	typedef int (Network::*StateProc)(Event &event);
+	StateProc current_state_;
+	Event event_;
+
+	// state functions
+	int Initial(Event &event);
+	int DiscoverCoordinator(Event &event);
+	int PartOfGroup(Event &event);
+	int StoppedConsumption(Event &event);
+
+private:
 	int last_correlation_id_;
 	short last_api_key_;
-private:
+
 	std::string topic_;
 	std::string group_;
 	// broker id -> Node

@@ -1,7 +1,6 @@
 #include <iostream>
 
 #include "sync_group_request.h"
-#include "request_response_type.h"
 
 GroupAssignment::GroupAssignment(const std::string &topic, const std::string &member_id,
 		const std::vector<int> &partitions)
@@ -25,7 +24,7 @@ void GroupAssignment::PrintAll()
 	member_assignment_.PrintAll();
 }
 
-int GroupAssignment::Package(char **buf)
+void GroupAssignment::Package(char **buf)
 {
 	// member id
 	short member_id_size = htons((short)member_id_.length());
@@ -39,13 +38,11 @@ int GroupAssignment::Package(char **buf)
 	memcpy(*buf, &member_assignment_size, 4);
 	(*buf) += 4;
 	member_assignment_.Package(buf);
-
-	return 0;
 }
 
-SyncGroupRequest::SyncGroupRequest(int correlation_id, const std::string &topic, const std::string group_id,
+SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string group_id,
 		int generation_id, const std::string &member_id,
-		const std::map<std::string, std::vector<int>> &member_partition_map)
+		const std::map<std::string, std::vector<int>> &member_partition_map, int correlation_id)
 	: Request(ApiKey::SyncGroupType, correlation_id)
 {
 	group_id_ = group_id;
@@ -92,7 +89,7 @@ void SyncGroupRequest::PrintAll()
 	std::cout << "-------------------------" << std::endl;
 }
 
-int SyncGroupRequest::Package(char **buf)
+void SyncGroupRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -124,6 +121,4 @@ int SyncGroupRequest::Package(char **buf)
 	{
 		ga_it->Package(buf);
 	}
-
-	return 0;
 }

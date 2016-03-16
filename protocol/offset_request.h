@@ -5,6 +5,7 @@
 #include <string>
 
 #include "request.h"
+#include "request_response_type.h"
 
 class PartitionTime {
 public:
@@ -12,7 +13,7 @@ public:
 
 	int CountSize();
 	void PrintAll();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	// Partition Time MaxNumberOfOffsets
 	int32_t partition_;
@@ -26,7 +27,7 @@ public:
 
 	int CountSize();
 	void PrintAll();
-	int Package(char **buf);
+	void Package(char **buf);
 
 	// TopicName [Partition Time MaxNumberOfOffsets]
 	std::string topic_;
@@ -35,13 +36,13 @@ public:
 
 class OffsetRequest: public Request {
 public:
-	OffsetRequest(int correlation_id, const std::string &topic,
-		const std::vector<int32_t> &p, int64_t time = -1, int32_t replica_id = -1);
+	OffsetRequest(const std::string &topic,
+		const std::vector<int32_t> &p, int64_t time = -1, int32_t replica_id = -1, int correlation_id = ApiKey::OffsetType);
 
 	virtual ~OffsetRequest() {}
 	virtual int CountSize();
 	virtual void PrintAll();
-	virtual int Package(char **buf);
+	virtual void Package(char **buf);
 
 	// ReplicaId [TopicName [Partition Time MaxNumberOfOffsets]]
 	int32_t replica_id_;	// always -1

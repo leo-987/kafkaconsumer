@@ -1,11 +1,10 @@
 #include <iostream>
 
 #include "offset_fetch_request.h"
-#include "request_response_type.h"
 
-OffsetFetchRequest::OffsetFetchRequest(int correlation_id, const std::string &group,
-			const std::string &topic, const std::vector<int> &partitions)
-	: Request(ApiKey::OffsetFetchType, correlation_id, 1)
+OffsetFetchRequest::OffsetFetchRequest(const std::string &group,
+			const std::string &topic, const std::vector<int> &partitions, int correlation_id)
+	: Request(ApiKey::OffsetFetchType, correlation_id, ApiVersion::v1)
 {
 	group_ = group;
 	topic_ = topic;
@@ -36,7 +35,7 @@ void OffsetFetchRequest::PrintAll()
 
 }
 
-int OffsetFetchRequest::Package(char **buf)
+void OffsetFetchRequest::Package(char **buf)
 {
 	Request::Package(buf);
 
@@ -70,7 +69,5 @@ int OffsetFetchRequest::Package(char **buf)
 		memcpy(*buf, &partition, 4);
 		(*buf) += 4;
 	}
-
-	return 0;
 }
 
