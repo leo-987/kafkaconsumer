@@ -42,7 +42,7 @@ public:
 	virtual void Package(char **buf);
 
 	std::string group_id_;
-	int session_timeout_;
+	int session_timeout_;			// heartbeats maximum time
 	std::string member_id_;			// When a member first joins the group, the memberId will be empty
 	std::string protocol_type_;		// "consumer"
 	std::vector<GroupProtocol> group_protocols_;

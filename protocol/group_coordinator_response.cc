@@ -3,6 +3,7 @@
 #include "group_coordinator_response.h"
 #include "util.h"
 
+#if 0
 GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short error_code,
 		int coordinator_id, const std::string &coordinator_host, int coordinator_port)
 	: Response(ApiKey::GroupCoordinatorType, correlation_id)
@@ -13,6 +14,7 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short err
 	coordinator_port_ = coordinator_port;
 	total_size_ = CountSize();
 }
+#endif
 
 GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	: Response(ApiKey::GroupCoordinatorType, buf)
@@ -21,7 +23,7 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	(*buf) += 2;
 	coordinator_id_ = Util::NetBytesToInt(*buf); 
 	(*buf) += 4;
-	short host_size = Util::NetBytesToShort(*buf);
+	int16_t host_size = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
 	coordinator_host_ = std::string(*buf, host_size);
 	(*buf) += host_size;
@@ -35,9 +37,8 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 
 int GroupCoordinatorResponse::CountSize()
 {
-	int size = 0;
-	size = Response::CountSize() + 2 /* error_code */ + 4 /* coordinator_id */+
-		   2 /* coordinator_host size */ + coordinator_host_.length() + 4;
+	int size = Response::CountSize();
+	size += 2 + 4 + 2 + coordinator_host_.length() + 4;
 	return size;
 }
 
@@ -52,3 +53,7 @@ void GroupCoordinatorResponse::PrintAll()
 	std::cout << "----------------------------------" << std::endl;
 }
 
+int32_t GroupCoordinatorResponse::GetCoordinatorId()
+{
+	return coordinator_id_;
+}

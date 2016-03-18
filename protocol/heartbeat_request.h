@@ -8,7 +8,7 @@
 
 class HeartbeatRequest: public Request {
 public:
-	HeartbeatRequest(const std::string &group_id, int generation_id,
+	HeartbeatRequest(const std::string &group, int generation_id,
 					 const std::string &member_id, int correlation_id = ApiKey::HeartbeatType);
 	virtual ~HeartbeatRequest() {}
 
@@ -16,7 +16,7 @@ public:
 	virtual void PrintAll();
 	virtual void Package(char **buf);
 
-	std::string group_id_;
+	std::string group_;
 	int generation_id_;
 	std::string member_id_;
 };

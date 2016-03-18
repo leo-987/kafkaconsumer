@@ -27,6 +27,10 @@
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
 	client_ = client;
+	topic_ = topic;
+	group_ = group;
+	coordinator_ = NULL;
+	amIGroupLeader_ = false;
 
 	// create brokers
 	int tmp_broker_id = -1;
@@ -43,12 +47,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		tmp_broker_id--;
 	}
 
-	topic_ = topic;
-	group_ = group;
-
 	//pthread_mutex_init(&queue_mutex_, NULL);
-	//state_machine_ = new StateMachine(network_, brokers_);
-	//state_machine_->Init();
 
 	event_ = Event::STARTUP;
 	current_state_ = &Network::Initial;
@@ -64,7 +63,6 @@ Network::~Network()
 		close(it->second.fd_);
 		//delete it->second;
 	}
-
 	//pthread_mutex_destroy(&queue_mutex_);
 }
 
@@ -77,37 +75,7 @@ int Network::Start()
 
 
 #if 0
-	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(group_);
-	SendRequestHandler(broker, group_request);
-	ReceiveResponseHandler(broker, &response);
-	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
-	broker = &(brokers_[group_response->coordinator_id_]);
-	delete response;
-	
 
-	JoinGroupRequest *join_request = new JoinGroupRequest(group_, "", topics);
-	SendRequestHandler(broker, join_request);
-	ReceiveResponseHandler(broker, &response);
-	JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
-	generation_id_ = join_response->GetGenerationId();
-	member_id_ = join_response->GetMemberId();
-	members_ = join_response->GetAllMembers();
-	PartitionAssignment();
-	delete response;
-
-
-	SyncGroupRequest *sync_request = new SyncGroupRequest(topic_, group_, generation_id_,
-			member_id_, member_partition_map_);
-	sync_request->PrintAll();
-	SendRequestHandler(broker, sync_request);
-	ReceiveResponseHandler(broker, &response);
-	delete response;
-
-	HeartbeatRequest *hear_request = new HeartbeatRequest(group_, generation_id_, member_id_);
-	hear_request->PrintAll();
-	SendRequestHandler(broker, hear_request);
-	ReceiveResponseHandler(broker, &response);
-	delete response;
 
 	std::vector<int> partitions({1});
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, partitions);
@@ -173,14 +141,14 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 
 int Network::Receive(int fd, Response **res)
 {
-	char buf[6000] = {0};
+	char buf[65536] = {0};
 
 	int ret = CompleteRead(fd ,buf);
 	if (ret < 0)
 		return -1;
 
-	int response_size = Util::NetBytesToInt(buf);
-	int correlation_id = Util::NetBytesToInt(buf + 4); 
+	//int response_size = Util::NetBytesToInt(buf);
+	int correlation_id = Util::NetBytesToInt(buf + 4);
 	int api_key = GetApiKeyFromResponse(correlation_id);
 	if (api_key < 0)
 	{
@@ -284,10 +252,10 @@ short Network::GetApiKeyFromResponse(int correlation_id)
 
 int Network::PartitionAssignment()
 {
-	int base = partitions_map_.size() / members_.size();
-	int remainder = partitions_map_.size() % members_.size();
-	auto pm_it = partitions_map_.begin();
-	
+	int base = partitions_.size() / members_.size();
+	int remainder = partitions_.size() % members_.size();
+	auto pm_it = partitions_.begin();
+
 	for (auto m_it = members_.begin(); m_it != members_.end(); ++m_it)
 	{
 		std::vector<int> owned;
@@ -296,16 +264,13 @@ int Network::PartitionAssignment()
 			owned.push_back(pm_it->second.id_);
 			++pm_it;
 		}
-
 		if (remainder-- > 0)
 		{
 			owned.push_back(pm_it->second.id_);
 			++pm_it;
 		}
-
 		member_partition_map_.insert({*m_it, owned});
 	}
-
 	return 0;
 }
 
@@ -358,40 +323,140 @@ int Network::Initial(Event &event)
 	MetadataRequest *metadata_request = new MetadataRequest(topics);
 
 	// Select the first broker
-	auto it = brokers_.begin();
-	Broker *broker = &(it->second);
+	auto b_it = brokers_.begin();
+	Broker *broker = &(b_it->second);
 	SendRequestHandler(broker, metadata_request);
 	ReceiveResponseHandler(broker, &response);
 	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
 
-	// insert new broker
-	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
-	{
-		Broker &b = b_it->second;
-		int broker_id = meta_response->GetBrokerIdFromHostname(b.host_);
-		b.id_ = broker_id;
-		brokers_.insert({broker_id, b});
-	}
+	meta_response->ParseBrokers(brokers_);
+	meta_response->ParsePartitions(partitions_);
 
-	// delete old broker
-	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); /* NULL */)
-	{
-		if (b_it->first < 0)
-			b_it = brokers_.erase(b_it);
-		else
-			++b_it;
-	}
-	std::vector<PartitionMetadata> &partition_metadata =
-						meta_response->topic_metadata_[0].partition_metadata_;
-	for (auto pm_it = partition_metadata.begin(); pm_it != partition_metadata.end(); ++pm_it)
-	{
-		Partition partition(pm_it->partition_id_, pm_it->leader_);
-		partitions_map_.insert({partition.id_, partition});
-	}
+	delete metadata_request;
 	delete response;
+
+	// next state
+	current_state_ = &Network::DiscoverCoordinator;
+	event = Event::DISCOVER_COORDINATOR;
 
 	return 0;
 }
+
+int Network::DiscoverCoordinator(Event &event)
+{
+	// Select the first broker
+	auto b_it = brokers_.begin();
+	Broker *broker = &(b_it->second);
+
+	Response *response;
+	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(group_);
+	SendRequestHandler(broker, group_request);
+	ReceiveResponseHandler(broker, &response);
+	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
+
+	int32_t co_id = group_response->GetCoordinatorId();
+	coordinator_ = &brokers_[co_id];
+
+	delete group_request;
+	delete response;
+
+	// next state
+	current_state_ = &Network::JoinGroup;
+	event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+
+	return 0;
+}
+
+int Network::JoinGroup(Event &event)
+{
+	switch(event)
+	{
+		Response *response;
+		case Event::JOIN_WITH_EMPTY_CONSUMER_ID:
+		{
+			std::vector<std::string> topics({topic_});
+			std::string member_id = "";
+			JoinGroupRequest *join_request = new JoinGroupRequest(group_, member_id, topics);
+			SendRequestHandler(coordinator_, join_request);
+			ReceiveResponseHandler(coordinator_, &response);
+			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
+			generation_id_ = join_response->GetGenerationId();
+			member_id_ = join_response->GetMemberId();
+			amIGroupLeader_ = join_response->IsGroupLeader();
+			if (amIGroupLeader_ == true)
+			{
+				members_ = join_response->GetAllMembers();
+				PartitionAssignment();
+			}
+
+			delete join_request;
+			break;
+		}
+		default:
+		{
+			break;
+		}
+		delete response;
+	}
+
+	// next state
+	current_state_ = &Network::SyncGroup;
+	event = Event::SYNC_GROUP;
+
+	return 0;
+}
+
+int Network::SyncGroup(Event &event)
+{
+	SyncGroupRequest *sync_request;
+	Response *response;
+
+	if (amIGroupLeader_ == true)
+		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_, member_partition_map_);
+	else
+		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_);
+
+	sync_request->PrintAll();
+	SendRequestHandler(coordinator_, sync_request);
+	ReceiveResponseHandler(coordinator_, &response);
+
+	delete sync_request;
+	delete response;
+
+	// next state
+	current_state_ = &Network::PartOfGroup;
+	event = Event::HEARTBEAT;
+	return 0;
+}
+
+int Network::PartOfGroup(Event &event)
+{
+	switch(event)
+	{
+		Response *response;
+		case Event::HEARTBEAT:
+		{
+			HeartbeatRequest *heart_request = new HeartbeatRequest(group_, generation_id_, member_id_);
+			heart_request->PrintAll();
+			SendRequestHandler(coordinator_, heart_request);
+			ReceiveResponseHandler(coordinator_, &response);
+			break;
+		}
+		default:
+		{
+			break;
+		}
+
+		delete response;
+	}
+
+	exit(0);
+	return 0;
+}
+
+
+
+
 
 
 

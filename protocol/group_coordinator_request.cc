@@ -5,32 +5,29 @@
 GroupCoordinatorRequest::GroupCoordinatorRequest(const std::string &group_id, int correlation_id)
 	: Request(ApiKey::GroupCoordinatorType, correlation_id)
 {
-	group_id_ = group_id;
+	group_ = group_id;
 	total_size_ = CountSize();
 }
 
 int GroupCoordinatorRequest::CountSize()
 {
-	return Request::CountSize() +		// head
-		   2 + group_id_.length();	// body
+	return Request::CountSize() + 2 + group_.length();
 }
 
 void GroupCoordinatorRequest::PrintAll()
 {
 	std::cout << "-----GroupCoordinatorRequest-----" << std::endl;
 	Request::PrintAll();
-	std::cout << "group id = " << group_id_ << std::endl;
+	std::cout << "group id = " << group_ << std::endl;
 	std::cout << "---------------------------------" << std::endl;
 }
 
 void GroupCoordinatorRequest::Package(char **buf)
 {
 	Request::Package(buf);
-
-	// group id
-	short group_id_size = htons((short)group_id_.length());
-	memcpy(*buf, &group_id_size, 2);
+	short group_len = htons((short)group_.length());
+	memcpy(*buf, &group_len, 2);
 	(*buf) += 2;
-	memcpy(*buf, group_id_.c_str(), group_id_.length());
+	memcpy(*buf, group_.c_str(), group_.length());
 }
 

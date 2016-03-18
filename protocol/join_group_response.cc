@@ -126,6 +126,11 @@ void JoinGroupResponse::PrintAll()
 	std::cout << "---------------------------" << std::endl;
 }
 
+bool JoinGroupResponse::IsGroupLeader()
+{
+	return !members_.empty();
+}
+
 std::vector<std::string> JoinGroupResponse::GetAllMembers()
 {
 	std::vector<std::string> members;

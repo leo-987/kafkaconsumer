@@ -40,7 +40,7 @@ void GroupAssignment::Package(char **buf)
 	member_assignment_.Package(buf);
 }
 
-SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string group_id,
+SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string &group_id,
 		int generation_id, const std::string &member_id,
 		const std::map<std::string, std::vector<int>> &member_partition_map, int correlation_id)
 	: Request(ApiKey::SyncGroupType, correlation_id)
@@ -58,6 +58,15 @@ SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string g
 	total_size_ = CountSize();
 }
 
+SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string &group_id,
+		int generation_id, const std::string &member_id, int correlation_id)
+	: Request(ApiKey::SyncGroupType, correlation_id)
+{
+	group_id_ = group_id;
+	generation_id_ = generation_id;
+	member_id_ = member_id;
+	total_size_ = CountSize();
+}
 int SyncGroupRequest::CountSize()
 {
 	int size = Request::CountSize();
@@ -94,8 +103,8 @@ void SyncGroupRequest::Package(char **buf)
 	Request::Package(buf);
 
 	// group id
-	short group_id_size = htons((short)group_id_.length());
-	memcpy(*buf, &group_id_size, 2);
+	short group_id_len = htons((short)group_id_.length());
+	memcpy(*buf, &group_id_len, 2);
 	(*buf) += 2;
 	memcpy(*buf, group_id_.c_str(), group_id_.length());
 	(*buf) += group_id_.length();

@@ -3,9 +3,11 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 #include "response.h"
 #include "broker.h"
+#include "partition.h"
 
 #if 0
 class Broker {
@@ -32,9 +34,9 @@ public:
 	int CountSize();
 	void PrintAll();
 
-	short partition_error_code_;
-	int partition_id_;
-	int leader_;
+	int16_t partition_error_code_;
+	int32_t partition_id_;
+	int32_t leader_;
 	std::vector<int> replicas_;		// array
 	std::vector<int> isr_;			// array
 };
@@ -49,22 +51,24 @@ public:
 	int CountSize();
 	void PrintAll();
 
-	short topic_error_code_;
-	std::string topic_name_;
+	int16_t topic_error_code_;
+	std::string topic_;
 	std::vector<PartitionMetadata> partition_metadata_;
 };
 
+// [Broker][TopicMetadata]
 class MetadataResponse: public Response {
 public:
 	MetadataResponse(char **buf);
-
 	virtual ~MetadataResponse() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
 
 	int GetBrokerIdFromHostname(const std::string &hostname);
-		
+	void ParseBrokers(std::map<int, Broker> &brokers);
+	void ParsePartitions(std::map<int, Partition> &partitions);
+
 	std::vector<Broker> brokers_;				// array
 	std::vector<TopicMetadata> topic_metadata_;	// array
 };

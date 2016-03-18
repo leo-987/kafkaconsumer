@@ -116,7 +116,7 @@ TopicMetadata::TopicMetadata(short error_code, const std::string &topic_name,
 		const std::vector<PartitionMetadata> &partition_metadata)
 {
 	topic_error_code_ = error_code;
-	topic_name_ = topic_name;
+	topic_ = topic_name;
 	partition_metadata_ = partition_metadata;
 }
 
@@ -129,7 +129,7 @@ TopicMetadata::TopicMetadata(char **buf)
 	// topic name
 	short topic_name_size = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	topic_name_ = std::string(*buf, topic_name_size);
+	topic_ = std::string(*buf, topic_name_size);
 	(*buf) += topic_name_size;
 
 	// partition metadata array
@@ -145,7 +145,7 @@ TopicMetadata::TopicMetadata(char **buf)
 int TopicMetadata::CountSize()
 {
 	int size = 0;
-	size += 2 + 2 + topic_name_.length();
+	size += 2 + 2 + topic_.length();
 
 	size += 4;
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
@@ -157,7 +157,7 @@ int TopicMetadata::CountSize()
 void TopicMetadata::PrintAll()
 {
 	std::cout << "topic error code = " << topic_error_code_ << std::endl;
-	std::cout << "topic name = " << topic_name_ << std::endl;
+	std::cout << "topic name = " << topic_ << std::endl;
 
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
 		it->PrintAll();
@@ -196,13 +196,13 @@ int MetadataResponse::CountSize()
 
 	// array
 	size += 4;
-	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
-		size += it->CountSize();
+	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
+		size += b_it->CountSize();
 
 	// array
 	size += 4;
-	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
-		size += it->CountSize();
+	for (auto t_it = topic_metadata_.begin(); t_it != topic_metadata_.end(); ++t_it)
+		size += t_it->CountSize();
 
 	return size;
 }
@@ -211,12 +211,11 @@ void MetadataResponse::PrintAll()
 {
 	std::cout << "-----MetadataResponse-----" << std::endl;
 	Response::PrintAll();
+	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
+		b_it->PrintAll();
 
-	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
-		it->PrintAll();
-
-	for (auto it = topic_metadata_.begin(); it != topic_metadata_.end(); ++it)
-		it->PrintAll();
+	for (auto t_it = topic_metadata_.begin(); t_it != topic_metadata_.end(); ++t_it)
+		t_it->PrintAll();
 	std::cout << "--------------------------" << std::endl;
 }
 
@@ -227,6 +226,47 @@ int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
 		if (b_it->host_ == hostname)
 			return b_it->id_;
 	}
-
 	return -1;
 }
+
+// XXX: we should parse all broker data in response
+void MetadataResponse::ParseBrokers(std::map<int, Broker> &brokers)
+{
+	// insert new broker
+	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
+	{
+		Broker b = b_it->second;
+		int broker_id = GetBrokerIdFromHostname(b.host_);
+		if (broker_id < 0)
+		{
+			std::cout << "error: broker id not found" << std::endl;
+			continue;
+		}
+
+		b.id_ = broker_id;
+		brokers.insert({broker_id, b});
+	}
+
+	// delete tmp broker
+	for (auto b_it = brokers.begin(); b_it != brokers.end(); /* NULL */)
+	{
+		if (b_it->first < 0)
+			b_it = brokers.erase(b_it);
+		else
+			++b_it;
+	}
+}
+
+void MetadataResponse::ParsePartitions(std::map<int, Partition> &partitions)
+{
+	// XXX: assuming only one topic
+	std::vector<PartitionMetadata> &pm = topic_metadata_[0].partition_metadata_;
+	for (auto pm_it = pm.begin(); pm_it != pm.end(); ++pm_it)
+	{
+		Partition partition(pm_it->partition_id_, pm_it->leader_);
+		partitions.insert({partition.id_, partition});
+	}
+}
+
+
+

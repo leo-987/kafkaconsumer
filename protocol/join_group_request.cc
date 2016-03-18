@@ -15,9 +15,9 @@ int ProtocolMetadata::CountSize()
 	int size = 0;
 	size += 2;		// version
 	size += 4;		// array
-	for (unsigned int i = 0; i < subscription_.size(); i++)
-		size += 2 + subscription_[i].size();
-	size += 4 + user_data_.length();
+	for (auto s_it = subscription_.begin(); s_it != subscription_.end(); ++s_it)
+		size += 2 + s_it->size();
+	size += 4 + user_data_.size();
 	return size;
 }
 
@@ -59,7 +59,7 @@ GroupProtocol::GroupProtocol(const std::vector<std::string> &topics)
 int GroupProtocol::CountSize()
 {
 	return 2 + assignment_strategy_.length() +
-		   4 /* bytes */ + protocol_metadata_.CountSize();
+		   4 + protocol_metadata_.CountSize();
 }
 
 void GroupProtocol::Package(char **buf)
@@ -84,26 +84,23 @@ JoinGroupRequest::JoinGroupRequest(const std::string &group_id, const std::strin
 	: Request(ApiKey::JoinGroupType, correlation_id)
 {
 	group_id_ = group_id;
-	session_timeout_ = 30000;
+	session_timeout_ = 10000;
 	member_id_ = member_id;
 	protocol_type_ = "consumer";
 
 	// only one group protocol
 	GroupProtocol group_protocol(topics);
 	group_protocols_.push_back(group_protocol);
-
 	total_size_ = CountSize();
 }
 
 int JoinGroupRequest::CountSize()
 {
-	int size = Request::CountSize();		// head
-	size +=	2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length() +
-			4 /* array */;
-
-	for (unsigned int i = 0; i < group_protocols_.size(); i++)
-		size += group_protocols_[i].CountSize();
-
+	int size = Request::CountSize();
+	size +=	2 + group_id_.length() + 4 + 2 + member_id_.length() + 2 + protocol_type_.length();
+	size += 4;
+	for (auto gp_it = group_protocols_.begin(); gp_it != group_protocols_.end(); ++gp_it)
+		size += gp_it->CountSize();
 	return size;
 }
 

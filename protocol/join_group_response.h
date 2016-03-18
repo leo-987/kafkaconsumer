@@ -26,13 +26,14 @@ public:
 	JoinGroupResponse(char **buf);
 	virtual ~JoinGroupResponse() {}
 
-	std::vector<std::string> GetAllMembers();
 
 	virtual int CountSize();
 	virtual void PrintAll();
 
 	int GetGenerationId();
 	std::string GetMemberId();
+	bool IsGroupLeader();
+	std::vector<std::string> GetAllMembers();
 
 	short error_code_;
 	int generation_id_;

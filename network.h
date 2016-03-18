@@ -13,7 +13,9 @@ class KafkaClient;
 
 enum class Event {
 	STARTUP,
-	JOIN_REQUEST_WITH_EMPTY_CONSUMER_ID,
+	DISCOVER_COORDINATOR,
+	JOIN_WITH_EMPTY_CONSUMER_ID,
+	SYNC_GROUP,
 	HEARTBEAT,
 	SENDER_STOPPED,
 };
@@ -25,26 +27,16 @@ public:
 
 	int Start();
 	int Stop();
-	int ReceiveResponseHandler(Broker *node, Response **response);
-	int SendRequestHandler(Broker *node, Request *request);
+	int ReceiveResponseHandler(Broker *broker, Response **response);
+	int SendRequestHandler(Broker *broker, Request *request);
 	int Receive(int fd, Response **res);
 	int Send(int fd, Request *request);
 	short GetApiKeyFromResponse(int correlation_id);
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf); 
 
-	KafkaClient *client_;
-
-	//StateMachine *state_machine_;
-
-
-	std::map<int, Partition> partitions_map_;
-	std::vector<std::string> members_;
 	std::map<std::string, std::vector<int>> member_partition_map_;
 	std::map<int, long> partition_offset_map_;
-
-	int generation_id_;
-	std::string member_id_;
 
 	typedef int (Network::*StateProc)(Event &event);
 	StateProc current_state_;
@@ -53,17 +45,32 @@ public:
 	// state functions
 	int Initial(Event &event);
 	int DiscoverCoordinator(Event &event);
+	int JoinGroup(Event &event);
+	int SyncGroup(Event &event);
 	int PartOfGroup(Event &event);
-	int StoppedConsumption(Event &event);
 
 private:
+	KafkaClient *client_;
+
 	int last_correlation_id_;
 	short last_api_key_;
 
 	std::string topic_;
 	std::string group_;
-	// broker id -> Node
+
+	// broker id -> Broker 
 	std::map<int, Broker> brokers_;
+
+	// partition id -> Partition
+	std::map<int, Partition> partitions_;
+
+	Broker *coordinator_;
+
+	int generation_id_;
+	std::string member_id_;
+
+	bool amIGroupLeader_;
+	std::vector<std::string> members_;
 };
 
 #endif

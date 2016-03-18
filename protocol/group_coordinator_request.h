@@ -15,6 +15,6 @@ public:
 	virtual void PrintAll();
 	virtual void Package(char **buf);
 
-	std::string group_id_;
+	std::string group_;
 };
 #endif
