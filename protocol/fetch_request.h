@@ -14,13 +14,13 @@ public:
 	virtual void PrintAll();
 	virtual void Package(char **buf);
 
-	int         replica_id_;
-	int         max_wait_time_;
-	int         min_bytes_;
+	int32_t     replica_id_;
+	int32_t     max_wait_time_;
+	int32_t     min_bytes_;
 	std::string topic_name_;
-	int         partition_;
-	long        fetch_offset_;
-	int         max_bytes_;
+	int32_t     partition_;
+	int64_t     fetch_offset_;
+	int32_t     max_bytes_;
 };
 
 #endif

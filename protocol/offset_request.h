@@ -37,7 +37,7 @@ public:
 class OffsetRequest: public Request {
 public:
 	OffsetRequest(const std::string &topic,
-		const std::vector<int32_t> &p, int64_t time = -1, int32_t replica_id = -1, int correlation_id = ApiKey::OffsetType);
+		const std::vector<int32_t> &partitions, int64_t time = -1, int32_t replica_id = -1, int correlation_id = ApiKey::OffsetType);
 
 	virtual ~OffsetRequest() {}
 	virtual int CountSize();

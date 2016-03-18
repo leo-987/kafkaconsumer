@@ -159,3 +159,15 @@ void MemberAssignment::Package(char **buf)
 	(*buf) += 4;
 	memcpy(*buf, user_data_.data(), user_data_.size());
 }
+
+void MemberAssignment::ParsePartitions(std::vector<int> &output_partitions)
+{
+	// XXX: we assume only one topic
+	PartitionAssignment &partition_assignment = partition_assignment_[0];
+	output_partitions = partition_assignment.partitions_;
+}
+
+
+
+
+

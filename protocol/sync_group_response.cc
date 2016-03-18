@@ -39,3 +39,13 @@ void SyncGroupResponse::PrintAll()
 	member_assignment_.PrintAll();
 	std::cout << "---------------------------" << std::endl;
 }
+
+int SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
+{
+	if (error_code_ != 0)
+		return -1;
+	else
+		member_assignment_.ParsePartitions(output_partitions);
+
+	return 0;
+}

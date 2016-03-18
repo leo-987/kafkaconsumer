@@ -16,8 +16,7 @@ enum class Event {
 	DISCOVER_COORDINATOR,
 	JOIN_WITH_EMPTY_CONSUMER_ID,
 	SYNC_GROUP,
-	HEARTBEAT,
-	SENDER_STOPPED,
+	FETCH,
 };
 
 class Network {
@@ -35,8 +34,6 @@ public:
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf); 
 
-	std::map<std::string, std::vector<int>> member_partition_map_;
-	std::map<int, long> partition_offset_map_;
 
 	typedef int (Network::*StateProc)(Event &event);
 	StateProc current_state_;
@@ -48,6 +45,8 @@ public:
 	int JoinGroup(Event &event);
 	int SyncGroup(Event &event);
 	int PartOfGroup(Event &event);
+
+	int HeartbeatTask();
 
 private:
 	KafkaClient *client_;
@@ -62,7 +61,9 @@ private:
 	std::map<int, Broker> brokers_;
 
 	// partition id -> Partition
-	std::map<int, Partition> partitions_;
+	std::map<int, Partition> all_partitions_;
+	std::vector<int> my_partitions_;
+	std::map<int, long> partition_offset_map_;
 
 	Broker *coordinator_;
 
@@ -71,6 +72,7 @@ private:
 
 	bool amIGroupLeader_;
 	std::vector<std::string> members_;
+	std::map<std::string, std::vector<int>> member_partition_map_;
 };
 
 #endif

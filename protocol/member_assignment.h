@@ -26,6 +26,7 @@ public:
 	int CountSize();
 	void PrintAll();
 	void Package(char **buf);
+	void ParsePartitions(std::vector<int> &output_partitions);
 
 	short version_;
 	std::vector<PartitionAssignment> partition_assignment_;		// array

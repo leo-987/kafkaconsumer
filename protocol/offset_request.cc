@@ -37,11 +37,11 @@ void PartitionTime::Package(char **buf)
 }
 
 //------------------------------------
-TopicPartition::TopicPartition(const std::string &topic, const std::vector<int32_t> &p, int64_t time)
+TopicPartition::TopicPartition(const std::string &topic, const std::vector<int32_t> &partitions, int64_t time)
 {
 	topic_ = topic;
 	
-	for (auto p_it = p.begin(); p_it != p.end(); ++p_it)
+	for (auto p_it = partitions.begin(); p_it != partitions.end(); ++p_it)
 	{
 		PartitionTime partition_time(*p_it, time);
 		partition_time_array_.push_back(partition_time);
@@ -88,12 +88,12 @@ void TopicPartition::Package(char **buf)
 
 //------------------------------------
 OffsetRequest::OffsetRequest(const std::string &topic,
-		const std::vector<int32_t> &p, int64_t time, int32_t replica_id, int correlation_id)
+		const std::vector<int32_t> &partitions, int64_t time, int32_t replica_id, int correlation_id)
 	: Request(ApiKey::OffsetType, correlation_id)
 {
 	replica_id_ = replica_id;
 
-	TopicPartition topic_partition(topic, p, time);
+	TopicPartition topic_partition(topic, partitions, time);
 	topic_partition_array_.push_back(topic_partition);
 
 	total_size_ = CountSize();

@@ -13,7 +13,6 @@ FetchRequest::FetchRequest(const std::string &topic_name, int partition, long fe
 	partition_ = partition;
 	fetch_offset_ = fetch_offset;
 	max_bytes_ = 1048576;
-
 	total_size_ = CountSize();
 }
 

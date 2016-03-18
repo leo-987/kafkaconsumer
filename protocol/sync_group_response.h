@@ -11,6 +11,7 @@ public:
 	virtual ~SyncGroupResponse() {}
 	virtual int CountSize();
 	virtual void PrintAll();
+	int ParsePartitions(std::vector<int> &output_partitions);
 
 	short error_code_;
 	MemberAssignment member_assignment_;	// bytes

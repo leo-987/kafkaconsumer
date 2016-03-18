@@ -72,46 +72,6 @@ int Network::Start()
 	{
 		(this->*current_state_)(event_);
 	}
-
-
-#if 0
-
-
-	std::vector<int> partitions({1});
-	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, partitions);
-	offset_fetch_request->PrintAll();
-	SendRequestHandler(broker, offset_fetch_request);
-	ReceiveResponseHandler(broker, &response);
-	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
-	offset_fetch_response->ParseOffset(partition_offset_map_);
-	delete response;
-
-	for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
-	{
-		if (po_it->second != -1)
-			continue;
-
-		std::vector<int> need_update_offset_partitions;
-		need_update_offset_partitions.push_back(po_it->first);
-
-		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_offset_partitions);
-		offset_request->PrintAll();
-		SendRequestHandler(broker, offset_request);
-		ReceiveResponseHandler(broker, &response);
-		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
-		po_it->second = offset_response->GetNewOffset();
-	}
-
-	while (true)
-	{
-		FetchRequest *fetch_request = new FetchRequest(topic_, 1, partition_offset_map_[1]);
-		fetch_request->PrintAll();
-		SendRequestHandler(broker, fetch_request);
-		ReceiveResponseHandler(broker, &response);
-		delete response;
-	}
-#endif
-
 	return 0;
 }
 
@@ -252,9 +212,9 @@ short Network::GetApiKeyFromResponse(int correlation_id)
 
 int Network::PartitionAssignment()
 {
-	int base = partitions_.size() / members_.size();
-	int remainder = partitions_.size() % members_.size();
-	auto pm_it = partitions_.begin();
+	int base = all_partitions_.size() / members_.size();
+	int remainder = all_partitions_.size() % members_.size();
+	auto pm_it = all_partitions_.begin();
 
 	for (auto m_it = members_.begin(); m_it != members_.end(); ++m_it)
 	{
@@ -330,7 +290,7 @@ int Network::Initial(Event &event)
 	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
 
 	meta_response->ParseBrokers(brokers_);
-	meta_response->ParsePartitions(partitions_);
+	meta_response->ParsePartitions(all_partitions_);
 
 	delete metadata_request;
 	delete response;
@@ -419,13 +379,15 @@ int Network::SyncGroup(Event &event)
 	sync_request->PrintAll();
 	SendRequestHandler(coordinator_, sync_request);
 	ReceiveResponseHandler(coordinator_, &response);
+	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
+	sync_response->ParsePartitions(my_partitions_);
 
 	delete sync_request;
 	delete response;
 
 	// next state
 	current_state_ = &Network::PartOfGroup;
-	event = Event::HEARTBEAT;
+	event = Event::FETCH;
 	return 0;
 }
 
@@ -434,31 +396,63 @@ int Network::PartOfGroup(Event &event)
 	switch(event)
 	{
 		Response *response;
-		case Event::HEARTBEAT:
+		case Event::FETCH:
 		{
-			HeartbeatRequest *heart_request = new HeartbeatRequest(group_, generation_id_, member_id_);
-			heart_request->PrintAll();
-			SendRequestHandler(coordinator_, heart_request);
+			OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_);
+			offset_fetch_request->PrintAll();
+			SendRequestHandler(coordinator_, offset_fetch_request);
 			ReceiveResponseHandler(coordinator_, &response);
-			break;
-		}
-		default:
-		{
+			OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
+			offset_fetch_response->ParseOffset(partition_offset_map_);
+			delete offset_fetch_request;
+
+			for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
+			{
+				if (po_it->second != -1)
+					continue;
+
+				std::vector<int> need_update_offset_partitions;
+				need_update_offset_partitions.push_back(po_it->first);
+				int leader_id = all_partitions_.at(po_it->first).leader_;
+				Broker *leader = &brokers_[leader_id];
+
+				OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_offset_partitions);
+				//offset_request->PrintAll();
+				SendRequestHandler(leader, offset_request);
+				ReceiveResponseHandler(leader, &response);
+				OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
+				po_it->second = offset_response->GetNewOffset();
+			}
+			for (auto p_it = my_partitions_.begin(); p_it != my_partitions_.end(); ++p_it)
+			{
+				int partition = *p_it;
+				int leader_id = all_partitions_.at(partition).leader_;
+				Broker *leader = &brokers_[leader_id];
+				FetchRequest *fetch_request = new FetchRequest(topic_, partition, partition_offset_map_[partition]);
+				//fetch_request->PrintAll();
+				SendRequestHandler(leader, fetch_request);
+				ReceiveResponseHandler(leader, &response);
+			}
+
+			HeartbeatTask();
 			break;
 		}
 
 		delete response;
 	}
-
-	exit(0);
 	return 0;
 }
 
-
-
-
-
-
+int Network::HeartbeatTask()
+{
+	Response *response;
+	HeartbeatRequest *heart_request = new HeartbeatRequest(group_, generation_id_, member_id_);
+	//heart_request->PrintAll();
+	SendRequestHandler(coordinator_, heart_request);
+	ReceiveResponseHandler(coordinator_, &response);
+	delete heart_request;
+	return 0;
+}
 
 
 
