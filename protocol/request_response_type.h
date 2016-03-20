@@ -21,5 +21,6 @@ struct ApiKey {
 struct ApiVersion {
 	static const short v0 = 0;
 	static const short v1 = 1;
+	static const short v2 = 2;
 };
 #endif

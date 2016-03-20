@@ -29,7 +29,8 @@ public:
 	virtual void PrintAll();
 
 	int ParseOffset(std::map<int, long> &partition_offset_map);
-
+	
+private:
 	// XXX: [TopicName [Partition Offset Metadata ErrorCode]]
 	std::string topic_;
 	std::vector<PartitionOffsetInfo> partitions_info_;

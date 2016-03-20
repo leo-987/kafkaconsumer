@@ -15,6 +15,7 @@ SOURCES = main.cc kafka_client.cc network.cc\
 		  protocol/sync_group_request.cc protocol/sync_group_response.cc\
 		  protocol/join_group_request.cc protocol/join_group_response.cc\
 		  protocol/group_coordinator_request.cc protocol/group_coordinator_response.cc\
+		  protocol/offset_commit_request.cc protocol/offset_commit_response.cc\
 		  broker.cc
 
 OBJECTS = $(SOURCES:.cc=.o)

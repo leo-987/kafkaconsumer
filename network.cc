@@ -23,6 +23,8 @@
 #include "join_group_response.h"
 #include "group_coordinator_request.h"
 #include "group_coordinator_response.h"
+#include "offset_commit_request.h"
+#include "offset_commit_response.h"
 
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
@@ -166,6 +168,12 @@ int Network::Receive(int fd, Response **res)
 		{
 			OffsetResponse *offset_response = new OffsetResponse(&p);
 			*res = offset_response;
+			break;
+		}
+		case ApiKey::OffsetCommitType:
+		{
+			OffsetCommitResponse *commit_response = new OffsetCommitResponse(&p);
+			*res = commit_response;
 			break;
 		}
 	}
@@ -422,16 +430,26 @@ int Network::PartOfGroup(Event &event)
 				ReceiveResponseHandler(leader, &response);
 				OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
 				po_it->second = offset_response->GetNewOffset();
+				delete offset_request;
 			}
 			for (auto p_it = my_partitions_.begin(); p_it != my_partitions_.end(); ++p_it)
 			{
 				int partition = *p_it;
+				int64_t offset = partition_offset_map_[partition];
 				int leader_id = all_partitions_.at(partition).leader_;
 				Broker *leader = &brokers_[leader_id];
-				FetchRequest *fetch_request = new FetchRequest(topic_, partition, partition_offset_map_[partition]);
+				FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
 				//fetch_request->PrintAll();
 				SendRequestHandler(leader, fetch_request);
 				ReceiveResponseHandler(leader, &response);
+				delete fetch_request;
+				delete response;
+
+				OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset);
+				//commit_request->PrintAll();
+				SendRequestHandler(coordinator_, commit_request);
+				ReceiveResponseHandler(coordinator_, &response);
+				delete commit_request;
 			}
 
 			HeartbeatTask();
