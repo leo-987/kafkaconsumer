@@ -439,9 +439,14 @@ int Network::PartOfGroup(Event &event)
 			{
 				int partition = *p_it;
 				int64_t offset = partition_offset_map_[partition];
+
+				PartitionFM pfm(partition, offset);
+				std::vector<PartitionFM> partitions;
+				partitions.push_back(pfm);
+
 				int leader_id = all_partitions_.at(partition).leader_;
 				Broker *leader = &brokers_[leader_id];
-				FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
+				FetchRequest *fetch_request = new FetchRequest(topic_, partitions);
 				//fetch_request->PrintAll();
 				SendRequestHandler(leader, fetch_request);
 				ReceiveResponseHandler(leader, &response);

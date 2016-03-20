@@ -45,15 +45,15 @@ void PartitionInfo::PrintAll()
 TopicPartitionInfo::TopicPartitionInfo(char **buf)
 {
 	// topic name
-	short topic_name_size = Util::NetBytesToShort(*buf);
+	short topic_len = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	topic_ = std::string(*buf, topic_name_size);
-	(*buf) += topic_name_size;
+	topic_ = std::string(*buf, topic_len);
+	(*buf) += topic_len;
 
 	// partitions
-	int partitions_info_size = Util::NetBytesToInt(*buf);
+	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-	for (int i = 0; i < partitions_info_size; i++)
+	for (int i = 0; i < array_size; i++)
 	{
 		PartitionInfo partition_info(buf);
 		partitions_info_.push_back(partition_info);
@@ -88,17 +88,18 @@ FetchResponse::FetchResponse(char **buf)
 	: Response(ApiKey::FetchType, buf)
 {
 	// what?
+	throttle_time_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	int topics_info_size = Util::NetBytesToInt(*buf);
+	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-	for (int i = 0; i < topics_info_size; i++)
+	for (int i = 0; i < array_size; i++)
 	{
 		TopicPartitionInfo topic_partition_info(buf);
 		topic_partitions_.push_back(topic_partition_info);
 	}
 
-	throttle_time_ = Util::NetBytesToInt(*buf);
+	//throttle_time_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
 	if (total_size_ != CountSize())

@@ -52,8 +52,8 @@ public:
 	int64_t GetLastOffset();
 	
 private:
-	std::vector<TopicPartitionInfo> topic_partitions_;
 	int32_t throttle_time_;
+	std::vector<TopicPartitionInfo> topic_partitions_;
 };
 
 #endif

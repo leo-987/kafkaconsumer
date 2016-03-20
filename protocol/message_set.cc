@@ -46,7 +46,6 @@ void Message::PrintAll()
 
 OffsetAndMessage::OffsetAndMessage()
 {
-
 }
 
 OffsetAndMessage::OffsetAndMessage(char **buf)
