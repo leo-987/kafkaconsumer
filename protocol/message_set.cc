@@ -108,3 +108,22 @@ void MessageSet::PrintAll()
 		om_it->PrintAll();
 }
 
+void MessageSet::PrintMsg()
+{
+	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
+	{
+		Message &msg = om_it->message_;
+		std::cout << "key: " << msg.key_ << std::endl;
+		std::cout << "value: " << msg.value_ << std::endl;
+	}
+}
+
+int64_t MessageSet::GetLastOffset()
+{
+	// Only get the last msg's offset
+	int size = offset_message_.size();
+	return offset_message_[size - 1].offset_;
+}
+
+
+

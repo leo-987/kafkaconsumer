@@ -97,7 +97,10 @@ int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset_map)
 
 		int partition = pi_it->partition_;
 		long offset = pi_it->offset_;
-		partition_offset_map.insert({partition, offset});
+		//partition_offset_map.insert({partition, offset});
+		partition_offset_map[partition] = offset;
 	}
 	return 0;
 }
+
+

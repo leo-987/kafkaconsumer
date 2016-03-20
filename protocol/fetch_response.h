@@ -7,12 +7,15 @@
 #include "response.h"
 #include "message_set.h"
 
-class PartitionResponseInfo {
+class PartitionInfo {
 public:
-	PartitionResponseInfo(char **buf);
+	PartitionInfo(char **buf);
 
 	int CountSize();
 	void PrintAll();
+
+	friend class TopicPartitionInfo;
+	friend class FetchResponse;
 
 private:
 	int32_t partition_;
@@ -22,16 +25,18 @@ private:
 	MessageSet message_set_;
 };
 
-class TopicPartitionResponseInfo {
+class TopicPartitionInfo {
 public:
-	TopicPartitionResponseInfo(char **buf);
+	TopicPartitionInfo(char **buf);
 
 	int CountSize();
 	void PrintAll();
 
+	friend class FetchResponse;
+
 private:
-	std::string topic_name_;
-	std::vector<PartitionResponseInfo> partitions_info_;
+	std::string topic_;
+	std::vector<PartitionInfo> partitions_info_;
 };
 
 class FetchResponse: public Response {
@@ -41,9 +46,13 @@ public:
 
 	virtual int CountSize();
 	virtual void PrintAll();
+
+	void PrintTopicAndMsg();
+	bool IsEmptyMsg();
+	int64_t GetLastOffset();
 	
 private:
-	std::vector<TopicPartitionResponseInfo> topic_partitions_;
+	std::vector<TopicPartitionInfo> topic_partitions_;
 	int32_t throttle_time_;
 };
 

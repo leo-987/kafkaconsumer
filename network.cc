@@ -87,7 +87,7 @@ int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 	int ret = Receive(broker->fd_, response);
 	if (ret == 0)
 	{
-		(*response)->PrintAll();
+		//(*response)->PrintAll();
 	}
 
 	return 0;
@@ -190,7 +190,7 @@ int Network::Send(int fd, Request *request)
 	request->Package(&p);
 
 	int nwrite = write(fd, buf, packet_size);
-	std::cout << "Send " << nwrite << " bytes" << std::endl;
+	//std::cout << "Send " << nwrite << " bytes" << std::endl;
 	if (nwrite < 0)
 	{
 		if (errno == EWOULDBLOCK)
@@ -249,14 +249,14 @@ int Network::CompleteRead(int fd, char *buf)
 	read(fd, size_buf, 4);
 	memcpy(buf, size_buf, 4);
 	int total_len = Util::NetBytesToInt(size_buf);
-	std::cout << "total len = " << total_len << std::endl;
+	//std::cout << "total len = " << total_len << std::endl;
 
 	int sum_read = 0;
 	while (sum_read != total_len)
 	{
 		char tmp_buf[4096] = {0};
 		int nread = read(fd, tmp_buf, 4096);
-		std::cout << "nread = " << nread << std::endl;
+		//std::cout << "nread = " << nread << std::endl;
 
 		if (nread <= 0)
 		{
@@ -407,12 +407,13 @@ int Network::PartOfGroup(Event &event)
 		case Event::FETCH:
 		{
 			OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_);
-			offset_fetch_request->PrintAll();
+			//offset_fetch_request->PrintAll();
 			SendRequestHandler(coordinator_, offset_fetch_request);
 			ReceiveResponseHandler(coordinator_, &response);
 			OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
 			offset_fetch_response->ParseOffset(partition_offset_map_);
 			delete offset_fetch_request;
+			delete offset_fetch_response;
 
 			for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
 			{
@@ -431,7 +432,9 @@ int Network::PartOfGroup(Event &event)
 				OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
 				po_it->second = offset_response->GetNewOffset();
 				delete offset_request;
+				delete offset_response;
 			}
+
 			for (auto p_it = my_partitions_.begin(); p_it != my_partitions_.end(); ++p_it)
 			{
 				int partition = *p_it;
@@ -442,21 +445,25 @@ int Network::PartOfGroup(Event &event)
 				//fetch_request->PrintAll();
 				SendRequestHandler(leader, fetch_request);
 				ReceiveResponseHandler(leader, &response);
+				FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
+				fetch_response->PrintTopicAndMsg();
+				if (fetch_response->IsEmptyMsg() == false)
+				{
+					offset = fetch_response->GetLastOffset();
+					OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
+					//commit_request->PrintAll();
+					SendRequestHandler(coordinator_, commit_request);
+					ReceiveResponseHandler(coordinator_, &response);
+					delete commit_request;
+				}
 				delete fetch_request;
-				delete response;
+				delete fetch_response;
 
-				OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset);
-				//commit_request->PrintAll();
-				SendRequestHandler(coordinator_, commit_request);
-				ReceiveResponseHandler(coordinator_, &response);
-				delete commit_request;
 			}
 
 			HeartbeatTask();
 			break;
 		}
-
-		delete response;
 	}
 	return 0;
 }
@@ -469,6 +476,7 @@ int Network::HeartbeatTask()
 	SendRequestHandler(coordinator_, heart_request);
 	ReceiveResponseHandler(coordinator_, &response);
 	delete heart_request;
+	delete response;
 	return 0;
 }
 

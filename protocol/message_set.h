@@ -40,9 +40,10 @@ public:
 
 	int CountSize();
 	void PrintAll();
+	void PrintMsg();
+	int64_t GetLastOffset();
 
 	// array
-	int message_set_size_;	// The size in bytes of the message set for this partition
 	std::vector<OffsetAndMessage> offset_message_;
 };
 

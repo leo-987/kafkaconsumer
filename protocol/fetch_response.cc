@@ -4,7 +4,7 @@
 #include "util.h"
 
 // Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet
-PartitionResponseInfo::PartitionResponseInfo(char **buf)
+PartitionInfo::PartitionInfo(char **buf)
 {
 	partition_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
@@ -27,12 +27,12 @@ PartitionResponseInfo::PartitionResponseInfo(char **buf)
 		message_set_ = MessageSet(buf, message_set_size_);
 }
 
-int PartitionResponseInfo::CountSize()
+int PartitionInfo::CountSize()
 {
 	return 4 + 2 + 8 + 4 + message_set_.CountSize();
 }
 
-void PartitionResponseInfo::PrintAll()
+void PartitionInfo::PrintAll()
 {
 	std::cout << "partition = " << partition_ << std::endl;
 	std::cout << "error code = " << error_code_ << std::endl;
@@ -42,12 +42,12 @@ void PartitionResponseInfo::PrintAll()
 }
 
 // TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]
-TopicPartitionResponseInfo::TopicPartitionResponseInfo(char **buf)
+TopicPartitionInfo::TopicPartitionInfo(char **buf)
 {
 	// topic name
 	short topic_name_size = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	topic_name_ = std::string(*buf, topic_name_size);
+	topic_ = std::string(*buf, topic_name_size);
 	(*buf) += topic_name_size;
 
 	// partitions
@@ -55,15 +55,15 @@ TopicPartitionResponseInfo::TopicPartitionResponseInfo(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < partitions_info_size; i++)
 	{
-		PartitionResponseInfo partition_info(buf);
+		PartitionInfo partition_info(buf);
 		partitions_info_.push_back(partition_info);
 	}
 }
 
-int TopicPartitionResponseInfo::CountSize()
+int TopicPartitionInfo::CountSize()
 {
 	int size = 0;
-	size += 2 + topic_name_.length();
+	size += 2 + topic_.length();
 
 	size += 4;
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
@@ -73,9 +73,9 @@ int TopicPartitionResponseInfo::CountSize()
 	return size;
 }
 
-void TopicPartitionResponseInfo::PrintAll()
+void TopicPartitionInfo::PrintAll()
 {
-	std::cout << "topic name = " << topic_name_ << std::endl;
+	std::cout << "topic name = " << topic_ << std::endl;
 
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
@@ -94,7 +94,7 @@ FetchResponse::FetchResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < topics_info_size; i++)
 	{
-		TopicPartitionResponseInfo topic_partition_info(buf);
+		TopicPartitionInfo topic_partition_info(buf);
 		topic_partitions_.push_back(topic_partition_info);
 	}
 
@@ -132,4 +132,29 @@ void FetchResponse::PrintAll()
 	std::cout << "-----------------------" << std::endl;
 
 }
+
+void FetchResponse::PrintTopicAndMsg()
+{
+	// XXX: we assume only one topic
+	TopicPartitionInfo &tp = topic_partitions_[0];
+	PartitionInfo &p = tp.partitions_info_[0];
+	MessageSet &msg = p.message_set_;
+
+	std::cout << "topic: " << tp.topic_ << std::endl;
+	msg.PrintMsg();
+}
+
+bool FetchResponse::IsEmptyMsg()
+{
+	MessageSet &ms = topic_partitions_[0].partitions_info_[0].message_set_;
+	return ms.offset_message_.size() == 0;
+}
+
+int64_t FetchResponse::GetLastOffset()
+{
+	MessageSet &msg = topic_partitions_[0].partitions_info_[0].message_set_;
+	return msg.GetLastOffset();
+}
+
+
 
