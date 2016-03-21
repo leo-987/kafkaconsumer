@@ -33,6 +33,8 @@ public:
 	short GetApiKeyFromResponse(int correlation_id);
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf); 
+	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
+	void FetchValidOffset();
 
 
 	typedef int (Network::*StateProc)(Event &event);
@@ -62,8 +64,11 @@ private:
 
 	// partition id -> Partition
 	std::map<int, Partition> all_partitions_;
-	std::vector<int> my_partitions_;
+	std::vector<int> my_partitions_id_;
 	std::map<int, long> partition_offset_map_;
+
+	// broker id -> owned partitions id
+	std::map<int, std::vector<int>> broker_owned_partition_map_;
 
 	Broker *coordinator_;
 

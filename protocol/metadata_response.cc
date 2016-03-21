@@ -264,7 +264,7 @@ void MetadataResponse::ParsePartitions(std::map<int, Partition> &partitions)
 	for (auto pm_it = pm.begin(); pm_it != pm.end(); ++pm_it)
 	{
 		Partition partition(pm_it->partition_id_, pm_it->leader_);
-		partitions.insert({partition.id_, partition});
+		partitions.insert({partition.GetPartitionId(), partition});
 	}
 }
 

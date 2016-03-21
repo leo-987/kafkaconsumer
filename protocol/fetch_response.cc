@@ -138,11 +138,16 @@ void FetchResponse::PrintTopicAndMsg()
 {
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = topic_partitions_[0];
-	PartitionInfo &p = tp.partitions_info_[0];
-	MessageSet &msg = p.message_set_;
+	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
 
-	std::cout << "topic: " << tp.topic_ << std::endl;
-	msg.PrintMsg();
+	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
+	{
+		PartitionInfo &p = *p_it;
+		MessageSet &msg = p.message_set_;
+
+		std::cout << "topic: " << tp.topic_ << std::endl;
+		msg.PrintMsg();
+	}
 }
 
 bool FetchResponse::IsEmptyMsg()

@@ -229,12 +229,12 @@ int Network::PartitionAssignment()
 		std::vector<int> owned;
 		for (int i = 0; i < base; i++)
 		{
-			owned.push_back(pm_it->second.id_);
+			owned.push_back(pm_it->second.GetPartitionId());
 			++pm_it;
 		}
 		if (remainder-- > 0)
 		{
-			owned.push_back(pm_it->second.id_);
+			owned.push_back(pm_it->second.GetPartitionId());
 			++pm_it;
 		}
 		member_partition_map_.insert({*m_it, owned});
@@ -374,6 +374,19 @@ int Network::JoinGroup(Event &event)
 	return 0;
 }
 
+std::map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions)
+{
+	std::map<int, std::vector<int>> result;
+
+	for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
+	{
+		int partition_id = *p_it;
+		int leader_id = all_partitions_[partition_id].GetLeaderId();
+		result[leader_id].push_back(partition_id);
+	}
+	return result;
+}
+
 int Network::SyncGroup(Event &event)
 {
 	SyncGroupRequest *sync_request;
@@ -388,7 +401,19 @@ int Network::SyncGroup(Event &event)
 	SendRequestHandler(coordinator_, sync_request);
 	ReceiveResponseHandler(coordinator_, &response);
 	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
-	sync_response->ParsePartitions(my_partitions_);
+	sync_response->ParsePartitions(my_partitions_id_);
+	broker_owned_partition_map_ = CreateBrokerIdToOwnedPartitionMap(my_partitions_id_);
+
+#if 0
+	for (auto i = broker_owned_partition_map_.begin(); i != broker_owned_partition_map_.end(); ++i)
+	{
+		std::cout << "broker " << i->first << std::endl;
+		for (auto j = i->second.begin(); j != i->second.end(); ++j)
+		{
+			std::cout << "partition " << *j << std::endl;
+		}
+	}
+#endif
 
 	delete sync_request;
 	delete response;
@@ -399,6 +424,41 @@ int Network::SyncGroup(Event &event)
 	return 0;
 }
 
+void Network::FetchValidOffset()
+{
+	Response *response;
+
+	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
+	//offset_fetch_request->PrintAll();
+	SendRequestHandler(coordinator_, offset_fetch_request);
+	ReceiveResponseHandler(coordinator_, &response);
+	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
+	offset_fetch_response->ParseOffset(partition_offset_map_);
+	delete offset_fetch_request;
+	delete offset_fetch_response;
+
+	for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
+	{
+		if (po_it->second != -1)
+			continue;
+
+		std::vector<int> need_update_offset_partitions;
+		need_update_offset_partitions.push_back(po_it->first);
+		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
+		Broker *leader = &brokers_[leader_id];
+
+		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_offset_partitions);
+		//offset_request->PrintAll();
+		SendRequestHandler(leader, offset_request);
+		ReceiveResponseHandler(leader, &response);
+		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
+		po_it->second = offset_response->GetNewOffset();
+
+		delete offset_request;
+		delete offset_response;
+	}
+}
+
 int Network::PartOfGroup(Event &event)
 {
 	switch(event)
@@ -406,36 +466,9 @@ int Network::PartOfGroup(Event &event)
 		Response *response;
 		case Event::FETCH:
 		{
-			OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_);
-			//offset_fetch_request->PrintAll();
-			SendRequestHandler(coordinator_, offset_fetch_request);
-			ReceiveResponseHandler(coordinator_, &response);
-			OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
-			offset_fetch_response->ParseOffset(partition_offset_map_);
-			delete offset_fetch_request;
-			delete offset_fetch_response;
-
-			for (auto po_it = partition_offset_map_.begin(); po_it != partition_offset_map_.end(); ++po_it)
-			{
-				if (po_it->second != -1)
-					continue;
-
-				std::vector<int> need_update_offset_partitions;
-				need_update_offset_partitions.push_back(po_it->first);
-				int leader_id = all_partitions_.at(po_it->first).leader_;
-				Broker *leader = &brokers_[leader_id];
-
-				OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_offset_partitions);
-				//offset_request->PrintAll();
-				SendRequestHandler(leader, offset_request);
-				ReceiveResponseHandler(leader, &response);
-				OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
-				po_it->second = offset_response->GetNewOffset();
-				delete offset_request;
-				delete offset_response;
-			}
-
-			for (auto p_it = my_partitions_.begin(); p_it != my_partitions_.end(); ++p_it)
+			FetchValidOffset();
+#if 0
+			for (auto p_it = my_partitions_id_.begin(); p_it != my_partitions_id_.end(); ++p_it)
 			{
 				int partition = *p_it;
 				int64_t offset = partition_offset_map_[partition];
@@ -444,7 +477,7 @@ int Network::PartOfGroup(Event &event)
 				std::vector<PartitionFM> partitions;
 				partitions.push_back(pfm);
 
-				int leader_id = all_partitions_.at(partition).leader_;
+				int leader_id = all_partitions_.at(partition).GetLeaderId();
 				Broker *leader = &brokers_[leader_id];
 				FetchRequest *fetch_request = new FetchRequest(topic_, partitions);
 				//fetch_request->PrintAll();
@@ -461,6 +494,48 @@ int Network::PartOfGroup(Event &event)
 					ReceiveResponseHandler(coordinator_, &response);
 					delete commit_request;
 				}
+				delete fetch_request;
+				delete fetch_response;
+
+			}
+#endif
+
+			for (auto bp_it = broker_owned_partition_map_.begin(); bp_it != broker_owned_partition_map_.end(); ++bp_it)
+			{
+				std::vector<int> &owned_partitions = bp_it->second;
+				std::vector<PartitionFM> fetch_partitions;
+
+				for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
+				{
+					int partition = *p_it;
+					int64_t offset = partition_offset_map_[partition];
+
+					PartitionFM pfm(partition, offset);
+					fetch_partitions.push_back(pfm);
+				}
+
+				int leader_id = bp_it->first;
+				Broker *leader = &brokers_[leader_id];
+				FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
+				//fetch_request->PrintAll();
+				SendRequestHandler(leader, fetch_request);
+				ReceiveResponseHandler(leader, &response);
+				FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
+				fetch_response->PrintTopicAndMsg();
+
+				// TODO
+#if 0
+				if (fetch_response->IsEmptyMsg() == false)
+				{
+					offset = fetch_response->GetLastOffset();
+					OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
+					//commit_request->PrintAll();
+					SendRequestHandler(coordinator_, commit_request);
+					ReceiveResponseHandler(coordinator_, &response);
+					delete commit_request;
+				}
+#endif
+
 				delete fetch_request;
 				delete fetch_response;
 
