@@ -28,7 +28,7 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 
-	int ParseOffset(std::map<int, long> &partition_offset_map);
+	int ParseOffset(std::map<int, long> &partition_offset);
 	
 private:
 	// XXX: [TopicName [Partition Offset Metadata ErrorCode]]

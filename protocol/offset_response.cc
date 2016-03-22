@@ -119,7 +119,9 @@ void OffsetResponse::PrintAll()
 
 long OffsetResponse::GetNewOffset()
 {
+	// XXX: need improve
 	return topic_partition_array_[0].partition_offset_array_[0].offset_array_[0];
 }
+
 
 

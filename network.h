@@ -1,4 +1,4 @@
-#ifndef _NETWORK_H_
+ #ifndef _NETWORK_H_
 #define _NETWORK_H_
 
 #include <map>
@@ -35,6 +35,7 @@ public:
 	int CompleteRead(int fd, char *buf); 
 	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
 	void FetchValidOffset();
+	int Fetching();
 
 
 	typedef int (Network::*StateProc)(Event &event);
@@ -65,10 +66,10 @@ private:
 	// partition id -> Partition
 	std::map<int, Partition> all_partitions_;
 	std::vector<int> my_partitions_id_;
-	std::map<int, long> partition_offset_map_;
+	std::map<int, long> partition_offset_;
 
-	// broker id -> owned partitions id
-	std::map<int, std::vector<int>> broker_owned_partition_map_;
+	// leader id -> owned partitions id
+	std::map<int, std::vector<int>> broker_owned_partition_;
 
 	Broker *coordinator_;
 

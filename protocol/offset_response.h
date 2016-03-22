@@ -12,6 +12,8 @@ public:
 	int CountSize();
 	void PrintAll();
 
+	friend class OffsetResponse;
+private:
 	// Partition ErrorCode [Offset]
 	int32_t partition_;
 	int16_t error_code_;
@@ -25,11 +27,14 @@ public:
 	int CountSize();
 	void PrintAll();
 
+	friend class OffsetResponse;
+private:
 	// TopicName [PartitionOffsets]
 	std::string topic_;
 	std::vector<PartitionOffsets> partition_offset_array_;
 };
 
+// format: [TopicName [PartitionOffsets]]
 class OffsetResponse: public Response {
 public:
 	OffsetResponse(char **buf);
@@ -40,7 +45,7 @@ public:
 
 	long GetNewOffset();
 
-	// [TopicName [PartitionOffsets]]
+private:
 	std::vector<TopicPartitionOR> topic_partition_array_;
 };
 

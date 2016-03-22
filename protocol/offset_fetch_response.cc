@@ -88,7 +88,7 @@ void OffsetFetchResponse::PrintAll()
 	std::cout << "-----------------------------" << std::endl;
 }
 
-int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset_map)
+int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset)
 {
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
@@ -97,8 +97,8 @@ int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset_map)
 
 		int partition = pi_it->partition_;
 		long offset = pi_it->offset_;
-		//partition_offset_map.insert({partition, offset});
-		partition_offset_map[partition] = offset;
+		//partition_offset.insert({partition, offset});
+		partition_offset[partition] = offset;
 	}
 	return 0;
 }

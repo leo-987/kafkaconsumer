@@ -9,12 +9,13 @@
 
 class PartitionTime {
 public:
-	PartitionTime(int32_t p, int64_t t, int32_t m = 1);
+	PartitionTime(int32_t partition, int64_t time, int32_t max_number = 1);
 
 	int CountSize();
 	void PrintAll();
 	void Package(char **buf);
 
+private:
 	// Partition Time MaxNumberOfOffsets
 	int32_t partition_;
 	int64_t time_;	// -1: latest -2: earliest
@@ -29,6 +30,7 @@ public:
 	void PrintAll();
 	void Package(char **buf);
 
+private:
 	// TopicName [Partition Time MaxNumberOfOffsets]
 	std::string topic_;
 	std::vector<PartitionTime> partition_time_array_;
@@ -44,6 +46,7 @@ public:
 	virtual void PrintAll();
 	virtual void Package(char **buf);
 
+private:
 	// ReplicaId [TopicName [Partition Time MaxNumberOfOffsets]]
 	int32_t replica_id_;	// always -1
 	std::vector<TopicPartition> topic_partition_array_;

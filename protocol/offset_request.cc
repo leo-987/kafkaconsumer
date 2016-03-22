@@ -2,11 +2,11 @@
 
 #include "offset_request.h"
 
-PartitionTime::PartitionTime(int32_t p, int64_t t, int32_t m)
+PartitionTime::PartitionTime(int32_t partition, int64_t time, int32_t max_number)
 {
-	partition_ = p;
-	time_ = t;
-	max_number_of_offsets_ = m;
+	partition_ = partition;
+	time_ = time;
+	max_number_of_offsets_ = max_number;
 }
 
 int PartitionTime::CountSize()

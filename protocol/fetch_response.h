@@ -2,6 +2,7 @@
 #define _FETCH_RESPONSE_H_
 
 #include <vector>
+#include <map>
 #include <string>
 
 #include "response.h"
@@ -47,7 +48,7 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 
-	void PrintTopicAndMsg();
+	void PrintTopicMsg();
 	bool HasMessage();
 	bool HasMessage(int32_t partition);
 	int64_t GetLastOffset(int32_t partition);
@@ -55,6 +56,12 @@ public:
 private:
 	int32_t throttle_time_;
 	std::vector<TopicPartitionInfo> topic_partitions_;
+
+	bool has_message_;
+	bool CheckHasMessage();
+
+	std::map<int32_t, int64_t> partition_last_offset_;
+	void StoreLastOffsets();
 };
 
 #endif

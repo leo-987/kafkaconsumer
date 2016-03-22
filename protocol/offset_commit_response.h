@@ -30,6 +30,7 @@ private:
 	std::vector<PartitionE> partitions_;
 };
 
+// format: [TopicName [Partition ErrorCode]]
 class OffsetCommitResponse: public Response {
 public:
 	OffsetCommitResponse(char **buf);

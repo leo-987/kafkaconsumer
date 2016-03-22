@@ -13,6 +13,7 @@ public:
 	int CountSize();
 	void PrintAll();
 
+private:
 	int crc_;
 	int8_t magic_byte_;
 	int8_t attributes_;
@@ -28,6 +29,7 @@ public:
 	int CountSize();
 	void PrintAll();
 
+private:
 	long offset_;
 	int message_size_;	// the size of the subsequent request or response message in bytes
 	Message message_;
@@ -43,7 +45,7 @@ public:
 	void PrintMsg();
 	int64_t GetLastOffset();
 
-	// array
+private:
 	std::vector<OffsetAndMessage> offset_message_;
 };
 

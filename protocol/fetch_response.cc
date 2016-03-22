@@ -106,6 +106,9 @@ FetchResponse::FetchResponse(char **buf)
 	{
 		throw "CountSize are not equal";
 	}
+
+	has_message_ = CheckHasMessage();
+	StoreLastOffsets();
 }
 
 int FetchResponse::CountSize()
@@ -134,7 +137,7 @@ void FetchResponse::PrintAll()
 
 }
 
-void FetchResponse::PrintTopicAndMsg()
+void FetchResponse::PrintTopicMsg()
 {
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = topic_partitions_[0];
@@ -152,7 +155,7 @@ void FetchResponse::PrintTopicAndMsg()
 	}
 }
 
-bool FetchResponse::HasMessage()
+bool FetchResponse::CheckHasMessage()
 {
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = topic_partitions_[0];
@@ -165,43 +168,40 @@ bool FetchResponse::HasMessage()
 			return true;
 	}
 	return false;
+}
+
+bool FetchResponse::HasMessage()
+{
+	return has_message_;
 }
 
 bool FetchResponse::HasMessage(int32_t partition)
 {
-	// XXX: we assume only one topic
-	TopicPartitionInfo &tp = topic_partitions_[0];
-	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
-
-	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
-	{
-		PartitionInfo &p = *p_it;
-		if (p.partition_ != partition)
-			continue;
-
-		if (p.message_set_size_ != 0)
-			return true;
-	}
-	return false;
+	if (partition_last_offset_.find(partition) != partition_last_offset_.end())
+		return true;
+	else
+		return false;
 }
 
 int64_t FetchResponse::GetLastOffset(int32_t partition)
 {
+	return partition_last_offset_[partition];
+}
+
+void FetchResponse::StoreLastOffsets()
+{
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = topic_partitions_[0];
 	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
-
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
 		PartitionInfo &p = *p_it;
-		if (p.partition_ != partition)
+		if (p.message_set_size_ == 0)
 			continue;
 
 		MessageSet &msg = p_it->message_set_;
-		return msg.GetLastOffset();
+		partition_last_offset_[p.partition_] = msg.GetLastOffset();
 	}
-
-	return -1;
 }
 
 
