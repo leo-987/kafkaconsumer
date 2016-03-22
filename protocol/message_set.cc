@@ -112,8 +112,7 @@ void MessageSet::PrintMsg()
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
 	{
 		Message &msg = om_it->message_;
-		std::cout << "key: " << msg.key_ << std::endl;
-		std::cout << "value: " << msg.value_ << std::endl;
+		std::cout << "key: " << msg.key_ << "	value: " << msg.value_ << std::endl;
 	}
 }
 

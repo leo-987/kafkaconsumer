@@ -48,8 +48,9 @@ public:
 	virtual void PrintAll();
 
 	void PrintTopicAndMsg();
-	bool IsEmptyMsg();
-	int64_t GetLastOffset();
+	bool HasMessage();
+	bool HasMessage(int32_t partition);
+	int64_t GetLastOffset(int32_t partition);
 	
 private:
 	int32_t throttle_time_;

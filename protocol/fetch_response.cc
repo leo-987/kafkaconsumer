@@ -37,7 +37,7 @@ void PartitionInfo::PrintAll()
 	std::cout << "partition = " << partition_ << std::endl;
 	std::cout << "error code = " << error_code_ << std::endl;
 	std::cout << "high water mark offset = " << high_water_mark_offset_ << std::endl;
-	std::cout << "message size = " << message_set_size_ << std::endl;
+	std::cout << "message set size = " << message_set_size_ << std::endl;
 	message_set_.PrintAll();
 }
 
@@ -143,23 +143,65 @@ void FetchResponse::PrintTopicAndMsg()
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
 		PartitionInfo &p = *p_it;
-		MessageSet &msg = p.message_set_;
+		if (p.message_set_size_ == 0)
+			continue;
 
-		std::cout << "topic: " << tp.topic_ << std::endl;
+		MessageSet &msg = p.message_set_;
+		//std::cout << "topic: " << tp.topic_ << std::endl;
 		msg.PrintMsg();
 	}
 }
 
-bool FetchResponse::IsEmptyMsg()
+bool FetchResponse::HasMessage()
 {
-	MessageSet &ms = topic_partitions_[0].partitions_info_[0].message_set_;
-	return ms.offset_message_.size() == 0;
+	// XXX: we assume only one topic
+	TopicPartitionInfo &tp = topic_partitions_[0];
+	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
+
+	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
+	{
+		PartitionInfo &p = *p_it;
+		if (p.message_set_size_ != 0)
+			return true;
+	}
+	return false;
 }
 
-int64_t FetchResponse::GetLastOffset()
+bool FetchResponse::HasMessage(int32_t partition)
 {
-	MessageSet &msg = topic_partitions_[0].partitions_info_[0].message_set_;
-	return msg.GetLastOffset();
+	// XXX: we assume only one topic
+	TopicPartitionInfo &tp = topic_partitions_[0];
+	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
+
+	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
+	{
+		PartitionInfo &p = *p_it;
+		if (p.partition_ != partition)
+			continue;
+
+		if (p.message_set_size_ != 0)
+			return true;
+	}
+	return false;
+}
+
+int64_t FetchResponse::GetLastOffset(int32_t partition)
+{
+	// XXX: we assume only one topic
+	TopicPartitionInfo &tp = topic_partitions_[0];
+	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
+
+	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
+	{
+		PartitionInfo &p = *p_it;
+		if (p.partition_ != partition)
+			continue;
+
+		MessageSet &msg = p_it->message_set_;
+		return msg.GetLastOffset();
+	}
+
+	return -1;
 }
 
 

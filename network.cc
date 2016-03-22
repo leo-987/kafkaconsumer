@@ -426,14 +426,14 @@ int Network::SyncGroup(Event &event)
 
 void Network::FetchValidOffset()
 {
-	Response *response;
-
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
 	//offset_fetch_request->PrintAll();
 	SendRequestHandler(coordinator_, offset_fetch_request);
+	Response *response;
 	ReceiveResponseHandler(coordinator_, &response);
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
 	offset_fetch_response->ParseOffset(partition_offset_map_);
+
 	delete offset_fetch_request;
 	delete offset_fetch_response;
 
@@ -442,11 +442,15 @@ void Network::FetchValidOffset()
 		if (po_it->second != -1)
 			continue;
 
+		std::cout << "partition = " << po_it->first << std::endl;
+		std::cout << "offset = " << po_it->second << std::endl;
+
 		std::vector<int> need_update_offset_partitions;
 		need_update_offset_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
 		Broker *leader = &brokers_[leader_id];
 
+		Response *response;
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_offset_partitions);
 		//offset_request->PrintAll();
 		SendRequestHandler(leader, offset_request);
@@ -523,16 +527,33 @@ int Network::PartOfGroup(Event &event)
 				FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
 				fetch_response->PrintTopicAndMsg();
 
-				// TODO
-#if 0
-				if (fetch_response->IsEmptyMsg() == false)
+				for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 				{
-					offset = fetch_response->GetLastOffset();
-					OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
-					//commit_request->PrintAll();
-					SendRequestHandler(coordinator_, commit_request);
-					ReceiveResponseHandler(coordinator_, &response);
-					delete commit_request;
+					int partition = *p_it;
+					if (fetch_response->HasMessage(partition))
+					{
+						//std::cout << "partition " << partition << " has msg!!" << std::endl;
+
+						Response *r;
+						int64_t offset = fetch_response->GetLastOffset(partition);
+						std::cout << "get partition = " << partition << " msg" << "     offset = " << offset << std::endl;
+						OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
+						//commit_request->PrintAll();
+						SendRequestHandler(coordinator_, commit_request);
+						ReceiveResponseHandler(coordinator_, &r);
+						delete commit_request;
+						delete r;
+					}
+				}
+#if 0
+				if (fetch_response->HasMessage())
+				{
+					//offset = fetch_response->GetLastOffset();
+					//OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
+					////commit_request->PrintAll();
+					//SendRequestHandler(coordinator_, commit_request);
+					//ReceiveResponseHandler(coordinator_, &response);
+					//delete commit_request;
 				}
 #endif
 
