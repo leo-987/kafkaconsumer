@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "offset_request.h"
+#include "easylogging++.h"
 
 PartitionTime::PartitionTime(int32_t partition, int64_t time, int32_t max_number)
 {
@@ -16,9 +15,9 @@ int PartitionTime::CountSize()
 
 void PartitionTime::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "time = " << time_ << std::endl;
-	std::cout << "max number of offsets = " << max_number_of_offsets_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "time = " << time_;
+	LOG(DEBUG) << "max number of offsets = " << max_number_of_offsets_;
 }
 
 void PartitionTime::Package(char **buf)
@@ -62,11 +61,9 @@ int TopicPartition::CountSize()
 
 void TopicPartition::PrintAll()
 {
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto pt_it = partition_time_array_.begin(); pt_it != partition_time_array_.end(); ++pt_it)
-	{
 		pt_it->PrintAll();
-	}
 }
 
 void TopicPartition::Package(char **buf)
@@ -113,14 +110,12 @@ int OffsetRequest::CountSize()
 
 void OffsetRequest::PrintAll()
 {
-	std::cout << "-----OffsetRequest-----" << std::endl;
+	LOG(DEBUG) << "-----OffsetRequest-----";
 	Request::PrintAll();
-	std::cout << "replica id = " << replica_id_ << std::endl;
+	LOG(DEBUG) << "replica id = " << replica_id_;
 	for (auto tp_it = topic_partition_array_.begin(); tp_it != topic_partition_array_.end(); ++tp_it)
-	{
 		tp_it->PrintAll();
-	}
-	std::cout << "-----------------------" << std::endl;
+	LOG(DEBUG) << "-----------------------";
 }
 
 void OffsetRequest::Package(char **buf)

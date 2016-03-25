@@ -25,6 +25,13 @@
 #include "group_coordinator_response.h"
 #include "offset_commit_request.h"
 #include "offset_commit_response.h"
+#include "error_code.h"
+
+#include "easylogging++.h"
+
+INITIALIZE_EASYLOGGINGPP
+
+#define ELPP_DISABLE_DEBUG_LOGS
 
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
@@ -54,7 +61,15 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 	event_ = Event::STARTUP;
 	current_state_ = &Network::Initial;
 
-	std::cout << "Network init OK!" << std::endl;
+	//std::cout << "Network init OK!" << std::endl;
+
+	el::Configurations defaultConf;
+	defaultConf.setToDefault();
+	defaultConf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime %level %msg");
+	defaultConf.set(el::Level::Global, el::ConfigurationType::ToStandardOutput, "false");
+	//defaultConf.set(el::Level::Global, el::ConfigurationType::Filename, "./logs/test.log");
+	defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+	el::Loggers::reconfigureLogger("default", defaultConf);
 }
 
 Network::~Network()
@@ -87,7 +102,7 @@ int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 	int ret = Receive(broker->fd_, response);
 	if (ret == 0)
 	{
-		//(*response)->PrintAll();
+		(*response)->PrintAll();
 	}
 
 	return 0;
@@ -103,9 +118,16 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 
 int Network::Receive(int fd, Response **res)
 {
-	char buf[65536] = {0};
+	//char buf[1048999] = {0};
+	char size_buf[4];
+	read(fd, size_buf, 4);
+	int total_len = Util::NetBytesToInt(size_buf);
+	//std::cout << "total len = " << total_len << std::endl;
 
-	int ret = CompleteRead(fd ,buf);
+	char *buf = new char[total_len + 4];
+	memcpy(buf, size_buf, 4);
+
+	int ret = CompleteRead(fd ,buf + 4, total_len);
 	if (ret < 0)
 		return -1;
 
@@ -129,7 +151,6 @@ int Network::Receive(int fd, Response **res)
 		}
 		case ApiKey::GroupCoordinatorType:
 		{
-
 			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(&p);
 			*res = response;
 			break;
@@ -178,6 +199,7 @@ int Network::Receive(int fd, Response **res)
 		}
 	}
 
+	delete[] buf;
 	return 0;
 }
 
@@ -242,20 +264,19 @@ int Network::PartitionAssignment()
 	return 0;
 }
 
-int Network::CompleteRead(int fd, char *buf)
+int Network::CompleteRead(int fd, char *buf, int total_len)
 {
-	char size_buf[4];
-
-	read(fd, size_buf, 4);
-	memcpy(buf, size_buf, 4);
-	int total_len = Util::NetBytesToInt(size_buf);
+	//char size_buf[4];
+	//read(fd, size_buf, 4);
+	//memcpy(buf, size_buf, 4);
+	//int total_len = Util::NetBytesToInt(size_buf);
 	//std::cout << "total len = " << total_len << std::endl;
 
 	int sum_read = 0;
 	while (sum_read != total_len)
 	{
-		char tmp_buf[4096] = {0};
-		int nread = read(fd, tmp_buf, 4096);
+		char tmp_buf[1048576] = {0};
+		int nread = read(fd, tmp_buf, sizeof(tmp_buf));
 		//std::cout << "nread = " << nread << std::endl;
 
 		if (nread <= 0)
@@ -269,8 +290,9 @@ int Network::CompleteRead(int fd, char *buf)
 			return -1;
 		}
 
-		memcpy(buf + 4 + sum_read, tmp_buf, nread);
+		memcpy(buf + 0 + sum_read, tmp_buf, nread);
 		sum_read += nread;
+		//std::cout << sum_read << std::endl;
 	}
 
 	return 0;
@@ -427,12 +449,11 @@ int Network::SyncGroup(Event &event)
 void Network::FetchValidOffset()
 {
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
-	//offset_fetch_request->PrintAll();
+	offset_fetch_request->PrintAll();
 	SendRequestHandler(coordinator_, offset_fetch_request);
 	Response *response;
 	ReceiveResponseHandler(coordinator_, &response);
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
-	//offset_fetch_response->PrintAll();
 	offset_fetch_response->ParseOffset(partition_offset_);
 	delete offset_fetch_request;
 	delete offset_fetch_response;
@@ -451,23 +472,92 @@ void Network::FetchValidOffset()
 		Broker *leader = &brokers_[leader_id];
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
-		//offset_request->PrintAll();
+		offset_request->PrintAll();
 		SendRequestHandler(leader, offset_request);
 		Response *response;
 		ReceiveResponseHandler(leader, &response);
-		response->PrintAll();
 		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
 		po_it->second = offset_response->GetNewOffset();
 		delete offset_request;
 		delete offset_response;
+
+		CommitOffset(po_it->first, po_it->second);
 	}
+}
+
+int Network::CommitOffset(int32_t partition, int64_t offset)
+{
+	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset);
+	commit_request->PrintAll();
+	SendRequestHandler(coordinator_, commit_request);
+	Response *r;
+	ReceiveResponseHandler(coordinator_, &r);
+	delete commit_request;
+	delete r;
 }
 
 int Network::Fetching()
 {
+	for (auto p_it = all_partitions_.begin(); p_it != all_partitions_.end(); ++p_it)
+	{
+		int partition = p_it->first;
+		int64_t offset = partition_offset_[partition];
+		Broker *leader = &brokers_.at(p_it->second.GetLeaderId());
+
+		FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
+		fetch_request->PrintAll();
+		SendRequestHandler(leader, fetch_request);
+		Response *response;
+		ReceiveResponseHandler(leader, &response);
+		FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
+		fetch_response->PrintTopicMsg();
+
+		if (fetch_response->HasMessage(partition))
+		{
+			int64_t last_offset = fetch_response->GetLastOffset(partition);
+			CommitOffset(partition, last_offset + 1);
+		}
+
+		delete fetch_request;
+		delete fetch_response;
+	}
+
+#if 0
 	for (auto bp_it = broker_owned_partition_.begin(); bp_it != broker_owned_partition_.end(); ++bp_it)
 	{
 		std::vector<int> &owned_partitions = bp_it->second;
+
+		int leader_id = bp_it->first;
+		Broker *leader = &brokers_[leader_id];
+		for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
+		{
+			int partition = *p_it;
+			int64_t offset = partition_offset_[partition];
+
+			FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
+			//fetch_request->PrintAll();
+			SendRequestHandler(leader, fetch_request);
+			Response *response;
+			ReceiveResponseHandler(leader, &response);
+			FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
+			//fetch_response->PrintAll();
+			fetch_response->PrintTopicMsg();
+
+			if (fetch_response->HasMessage(partition))
+			{
+				int64_t offset = fetch_response->GetLastOffset(partition);
+				OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
+				//commit_request->PrintAll();
+				SendRequestHandler(coordinator_, commit_request);
+				Response *r;
+				ReceiveResponseHandler(coordinator_, &r);
+				delete commit_request;
+				delete r;
+			}
+
+			delete fetch_request;
+			delete fetch_response;
+		}
 		std::vector<PartitionFM> fetch_partitions;
 
 		for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
@@ -482,11 +572,12 @@ int Network::Fetching()
 		int leader_id = bp_it->first;
 		Broker *leader = &brokers_[leader_id];
 		FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
-		//fetch_request->PrintAll();
+		fetch_request->PrintAll();
 		SendRequestHandler(leader, fetch_request);
 		Response *response;
 		ReceiveResponseHandler(leader, &response);
 		FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
+		fetch_response->PrintAll();
 		fetch_response->PrintTopicMsg();
 
 		if (fetch_response->HasMessage())
@@ -496,34 +587,22 @@ int Network::Fetching()
 				int partition = *p_it;
 				if (fetch_response->HasMessage(partition))
 				{
-					Response *r;
 					int64_t offset = fetch_response->GetLastOffset(partition);
 					OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
 					//commit_request->PrintAll();
 					SendRequestHandler(coordinator_, commit_request);
+					Response *r;
 					ReceiveResponseHandler(coordinator_, &r);
 					delete commit_request;
 					delete r;
 				}
 			}
 		}
-#if 0
-		if (fetch_response->HasMessage())
-		{
-			//offset = fetch_response->GetLastOffset();
-			//OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset + 1);
-			////commit_request->PrintAll();
-			//SendRequestHandler(coordinator_, commit_request);
-			//ReceiveResponseHandler(coordinator_, &response);
-			//delete commit_request;
-		}
-#endif
 
 		delete fetch_request;
 		delete fetch_response;
-
-		HeartbeatTask();
 	}
+#endif
 }
 
 int Network::PartOfGroup(Event &event)
@@ -534,24 +613,30 @@ int Network::PartOfGroup(Event &event)
 		{
 			FetchValidOffset();
 			Fetching();
-
-
+			int16_t error_code = HeartbeatTask();
+			if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
+			{
+				// next state
+				current_state_ = &Network::JoinGroup;
+				event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+			}
 			break;
 		}
 	}
 	return 0;
 }
 
-int Network::HeartbeatTask()
+int16_t Network::HeartbeatTask()
 {
 	Response *response;
 	HeartbeatRequest *heart_request = new HeartbeatRequest(group_, generation_id_, member_id_);
-	//heart_request->PrintAll();
+	heart_request->PrintAll();
 	SendRequestHandler(coordinator_, heart_request);
 	ReceiveResponseHandler(coordinator_, &response);
+	HeartbeatResponse *heart_response = dynamic_cast<HeartbeatResponse*>(response);
 	delete heart_request;
-	delete response;
-	return 0;
+	delete heart_response;
+	return heart_response->GetErrorCode();
 }
 
 

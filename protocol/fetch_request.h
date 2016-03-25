@@ -23,6 +23,7 @@ private:
 class TopicPartitionFM {
 public:
 	TopicPartitionFM(const std::string &topic, const std::vector<PartitionFM> &partitions);
+	TopicPartitionFM(const std::string &topic, int32_t partition, int64_t offset);
 
 	int CountSize();
 	void PrintAll();
@@ -36,6 +37,7 @@ private:
 class FetchRequest: public Request {
 public:
 	FetchRequest(const std::string &topic, const std::vector<PartitionFM> &partitions, int correlation_id = ApiKey::FetchType);
+	FetchRequest(const std::string &topic, int32_t partition, int64_t offset, int correlation_id = ApiKey::FetchType);
 	virtual ~FetchRequest() {}
 
 	virtual int CountSize();

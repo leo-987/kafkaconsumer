@@ -11,7 +11,7 @@ public:
 	//	int coordinator_id, const std::string &coordinator_host, int coordinator_port);
 
 	GroupCoordinatorResponse(char **buf);
-	virtual ~GroupCoordinatorResponse() {}
+	virtual ~GroupCoordinatorResponse() {};
 
 	virtual int CountSize();
 	virtual void PrintAll();

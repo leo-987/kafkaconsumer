@@ -1,7 +1,6 @@
-#include <iostream>
 #include <map>
-
 #include "offset_fetch_response.h"
+#include "easylogging++.h"
 
 PartitionOffsetInfo::PartitionOffsetInfo(char **buf)
 {
@@ -30,17 +29,17 @@ int PartitionOffsetInfo::CountSize()
 
 void PartitionOffsetInfo::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "offset = " << offset_ << std::endl;
-	std::cout << "metadata = " << metadata_ << std::endl;
-	std::cout << "error code = " << error_code_ << std::endl;
+	LOG(DEBUG) << "partition  = " << partition_;
+	LOG(DEBUG) << "offset     = " << offset_;
+	LOG(DEBUG) << "metadata   = " << metadata_ << std::endl;
+	LOG(DEBUG) << "error code = " << error_code_;
 }
 
 OffsetFetchResponse::OffsetFetchResponse(char **buf)
 	: Response(ApiKey::OffsetFetchType, buf)
 {
 	// TODO: topics_array_size not used
-	int topics_array_size = Util::NetBytesToInt(*buf);
+	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
 	short topic_length = Util::NetBytesToShort(*buf);
@@ -56,9 +55,10 @@ OffsetFetchResponse::OffsetFetchResponse(char **buf)
 		partitions_info_.push_back(partition_info);
 	}
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "total size != count size are not equal";
+		LOG(ERROR) << "total size != count size are not equal";
+		throw;
 	}
 }
 
@@ -78,14 +78,14 @@ int OffsetFetchResponse::CountSize()
 
 void OffsetFetchResponse::PrintAll()
 {
-	std::cout << "-----OffsetFetchResponse-----" << std::endl;
+	LOG(DEBUG) << "-----OffsetFetchResponse-----";
 	Response::PrintAll();
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
 		pi_it->PrintAll();
 	}
-	std::cout << "-----------------------------" << std::endl;
+	LOG(DEBUG) << "-----------------------------";
 }
 
 int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset)
@@ -93,7 +93,11 @@ int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset)
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
 		if (pi_it->error_code_ != 0)
+		{
+			std::cout << pi_it->error_code_ << std::endl;
+			exit(1);
 			continue;
+		}
 
 		int partition = pi_it->partition_;
 		long offset = pi_it->offset_;

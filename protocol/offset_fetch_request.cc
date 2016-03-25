@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "offset_fetch_request.h"
+#include "easylogging++.h"
 
 OffsetFetchRequest::OffsetFetchRequest(const std::string &group,
 			const std::string &topic, const std::vector<int> &partitions, int correlation_id)
@@ -23,15 +22,15 @@ int OffsetFetchRequest::CountSize()
 
 void OffsetFetchRequest::PrintAll()
 {
-	std::cout << "-----OffsetFetchRequest-----" << std::endl;
+	LOG(DEBUG) << "-----OffsetFetchRequest-----";
 	Request::PrintAll();
-	std::cout << "group = " << group_ << std::endl;
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "group = " << group_;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
 	{
-		std::cout << "partition = " << *p_it << std::endl;
+		LOG(DEBUG) << "partition = " << *p_it;
 	}
-	std::cout << "----------------------------" << std::endl;
+	LOG(DEBUG) << "----------------------------";
 
 }
 

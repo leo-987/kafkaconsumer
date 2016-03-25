@@ -1,13 +1,15 @@
-#include <iostream>
-
+#include <cstdint>
 #include "heartbeat_response.h"
 #include "util.h"
+#include "easylogging++.h"
+
+#define ELPP_DISABLE_DEBUG_LOGS
 
 HeartbeatResponse::HeartbeatResponse(char **buf)
 	: Response(ApiKey::HeartbeatType, buf)
 {
-	// error code
 	error_code_ = Util::NetBytesToShort(*buf);
+	LOG_IF(error_code_ != 0, ERROR) << "HeartbeatResponse error code = " << error_code_;
 }
 
 int HeartbeatResponse::CountSize()
@@ -17,9 +19,13 @@ int HeartbeatResponse::CountSize()
 
 void HeartbeatResponse::PrintAll()
 {
-	std::cout << "-----HeartbeatResponse-----" << std::endl;
+	LOG(DEBUG) << "-----HeartbeatResponse-----";
 	Response::PrintAll();
-	std::cout << "error code = " << error_code_ << std::endl;
-	std::cout << "---------------------------" << std::endl;
+	LOG(DEBUG) << "heartbeat error code = " << error_code_;
+	LOG(DEBUG) << "---------------------------";
 }
 
+int16_t HeartbeatResponse::GetErrorCode()
+{
+	return error_code_;
+}

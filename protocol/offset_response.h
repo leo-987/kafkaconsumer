@@ -2,6 +2,7 @@
 #define _OFFSET_RESPONSE_
 
 #include <vector>
+#include <string>
 
 #include "response.h"
 

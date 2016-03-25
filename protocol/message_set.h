@@ -13,6 +13,7 @@ public:
 	int CountSize();
 	void PrintAll();
 
+	friend class MessageSet;
 private:
 	int crc_;
 	int8_t magic_byte_;
@@ -24,11 +25,12 @@ private:
 class OffsetAndMessage {
 public:
 	OffsetAndMessage();
-	OffsetAndMessage(char **buf);
+	OffsetAndMessage(char **buf, int message_set_size, int &sum);
 
 	int CountSize();
 	void PrintAll();
 
+	friend class MessageSet;
 private:
 	long offset_;
 	int message_size_;	// the size of the subsequent request or response message in bytes

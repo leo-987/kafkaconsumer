@@ -47,6 +47,12 @@ TopicPartitionFM::TopicPartitionFM(const std::string &topic, const std::vector<P
 	partitions_ = partitions;
 }
 
+TopicPartitionFM::TopicPartitionFM(const std::string &topic, int32_t partition, int64_t offset)
+{
+	topic_ = topic;
+	partitions_.push_back({partition, offset});
+}
+
 int TopicPartitionFM::CountSize()
 {
 	int size = 2 + topic_.length();
@@ -86,6 +92,16 @@ FetchRequest::FetchRequest(const std::string &topic, const std::vector<Partition
 	max_wait_time_ = 500;
 	min_bytes_ = 1024;
 	topic_partitions_.push_back({topic, partitions});
+	total_size_ = CountSize();
+}
+
+FetchRequest::FetchRequest(const std::string &topic, int32_t partition, int64_t offset, int correlation_id)
+	: Request(ApiKey::FetchType, correlation_id, ApiVersion::v1)
+{
+	replica_id_ = -1;
+	max_wait_time_ = 500;
+	min_bytes_ = 1024;
+	topic_partitions_.push_back({topic, partition, offset});
 	total_size_ = CountSize();
 }
 

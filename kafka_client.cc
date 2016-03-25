@@ -16,7 +16,7 @@ KafkaClient::KafkaClient(const std::string &brokers, const std::string &topic, c
 	srand(time(NULL));
 	network_ = new Network(this, brokers, topic, group);
 	//signal(SIGINT, KafkaClient::SignalHandler);
-	std::cout << "KafkaClient init OK!" << std::endl;
+	//std::cout << "KafkaClient init OK!" << std::endl;
 }
 
 KafkaClient::~KafkaClient()

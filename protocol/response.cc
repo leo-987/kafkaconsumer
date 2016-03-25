@@ -1,8 +1,8 @@
-#include <iostream>
 #include <string.h>
 
 #include "response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 //------------------------------Head
 Response::Response(short api_key, int correlation_id)
@@ -28,8 +28,17 @@ int Response::CountSize()
 
 void Response::PrintAll()
 {
-	std::cout << "api key = " << api_key_ << std::endl;
-	std::cout << "total size = " << total_size_ << std::endl;
-	std::cout << "correlation id = " << correlation_id_ << std::endl;
+	LOG(DEBUG) << "api key = " << api_key_;
+	LOG(DEBUG) << "total size = " << total_size_;
+	LOG(DEBUG) << "correlation id = " << correlation_id_;
 }
 
+int32_t Response::GetTotalSize()
+{
+	return total_size_;
+}
+
+void Response::SetTotalSize(int32_t total_size)
+{
+	total_size_ = total_size;
+}

@@ -1,5 +1,5 @@
-#ifndef _REQUEST_RESPONSE_H_
-#define _REQUEST_RESPONSE_H_
+#ifndef _REQUEST_RESPONSE_TYPE_H_
+#define _REQUEST_RESPONSE_TYPE_H_
 
 // Api key is short, so use struct rather than enum
 struct ApiKey {

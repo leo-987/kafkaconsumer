@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "offset_commit_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 
 PartitionE::PartitionE(char **buf)
@@ -20,8 +19,8 @@ int PartitionE::CountSize()
 
 void PartitionE::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "error code = " << error_code_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "commit offset error code = " << error_code_;
 }
 	
 
@@ -52,7 +51,7 @@ int TopicPartitionE::CountSize()
 
 void TopicPartitionE::PrintAll()
 {
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
 		p_it->PrintAll();
 }
@@ -68,9 +67,10 @@ OffsetCommitResponse::OffsetCommitResponse(char **buf)
 		topic_partitions_.push_back(tp);
 	}
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "total size != count size are not equal";
+		LOG(ERROR) << "total size != count size are not equal";
+		throw;
 	}
 }
 
@@ -85,11 +85,11 @@ int OffsetCommitResponse::CountSize()
 
 void OffsetCommitResponse::PrintAll()
 {
-	std::cout << "------------OffsetCommitResponse-------------" << std::endl;
+	LOG(DEBUG) << "------------OffsetCommitResponse-------------";
 	Response::PrintAll();
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 		tp_it->PrintAll();
-	std::cout << "---------------------------------------------" << std::endl;
+	LOG(DEBUG) << "---------------------------------------------";
 }
 
 

@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "sync_group_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 SyncGroupResponse::SyncGroupResponse(char **buf)
 	: Response(ApiKey::SyncGroupType, buf)
@@ -9,6 +8,7 @@ SyncGroupResponse::SyncGroupResponse(char **buf)
 	// error code
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(error_code_ != 0, ERROR) << "SyncGroupResponse error code = " << error_code_;
 
 	// MemberAssignment bytes
 	int member_assignment_size = Util::NetBytesToInt(*buf);
@@ -17,9 +17,10 @@ SyncGroupResponse::SyncGroupResponse(char **buf)
 	// XXX: we should use member_assignment_size
 	member_assignment_ = MemberAssignment(buf);
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "CountSize are not equal";
+		LOG(ERROR) << "CountSize are not equal";
+		throw;
 	}
 }
 
@@ -33,11 +34,11 @@ int SyncGroupResponse::CountSize()
 
 void SyncGroupResponse::PrintAll()
 {
-	std::cout << "-----SyncGroupResponse-----" << std::endl;
+	LOG(DEBUG) << "-----SyncGroupResponse-----";
 	Response::PrintAll();
-	std::cout << "error code = " << error_code_ << std::endl;
+	LOG(DEBUG) << "error code = " << error_code_;
 	member_assignment_.PrintAll();
-	std::cout << "---------------------------" << std::endl;
+	LOG(DEBUG) << "---------------------------";
 }
 
 int SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
@@ -46,6 +47,5 @@ int SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
 		return -1;
 	else
 		member_assignment_.ParsePartitions(output_partitions);
-
 	return 0;
 }

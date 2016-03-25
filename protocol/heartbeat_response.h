@@ -3,15 +3,18 @@
 
 #include "response.h"
 
+// format: ErrorCode
 class HeartbeatResponse: public Response {
 public:
 	HeartbeatResponse(char **buf);
 	virtual ~HeartbeatResponse() {}
-
 	virtual int CountSize();
 	virtual void PrintAll();
 
-	short error_code_;
+	int16_t GetErrorCode();
+
+private:
+	int16_t error_code_;
 };
 
 #endif

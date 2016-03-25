@@ -3,6 +3,7 @@
 
 #include "message_set.h"
 #include "util.h"
+#include "easylogging++.h"
 
 Message::Message()
 {
@@ -25,6 +26,7 @@ Message::Message(char **buf)
 	(*buf) += key_len;
 
 	int value_len = Util::NetBytesToInt(*buf);
+	value_len = (value_len == -1 ? 0 : value_len);
 	(*buf) += 4;
 	value_ = std::string(*buf, value_len);
 	(*buf) += value_len;
@@ -37,18 +39,18 @@ int Message::CountSize()
 
 void Message::PrintAll()
 {
-	std::cout << "crc = " << crc_ << std::endl;
-	std::cout << "magic byte = " << magic_byte_ << std::endl;
-	std::cout << "attributes = " << attributes_ << std::endl;
-	std::cout << "key = " << key_ << std::endl;
-	std::cout << "value = " << value_ << std::endl;
+	LOG(DEBUG) << "crc = " << crc_;
+	LOG(DEBUG) << "magic byte = " << magic_byte_;
+	LOG(DEBUG) << "attributes = " << attributes_;
+	LOG(DEBUG) << "key = " << key_;
+	LOG(DEBUG) << "value = " << value_;
 }
 
 OffsetAndMessage::OffsetAndMessage()
 {
 }
 
-OffsetAndMessage::OffsetAndMessage(char **buf)
+OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum)
 {
 	long offset;
 	memcpy(&offset, *buf, 8);
@@ -57,11 +59,21 @@ OffsetAndMessage::OffsetAndMessage(char **buf)
 	// for Mac
 	offset_ = ntohll(offset);
 	(*buf) += 8;
+	sum +=8;
+	if (sum >= message_set_size)
+		throw 1;
 
 	message_size_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
+	sum +=4;
+	if (sum >= message_set_size || sum + message_size_ > message_set_size)
+		throw 1;
+
+	//std::cout << "offset = " << offset_ << std::endl;
+	//std::cout << "message size = " << message_size_ << std::endl;
 
 	message_ = Message(buf);
+	sum += message_.CountSize();
 }
 
 int OffsetAndMessage::CountSize()
@@ -71,8 +83,8 @@ int OffsetAndMessage::CountSize()
 
 void OffsetAndMessage::PrintAll()
 {
-	std::cout << "offset = " << offset_ << std::endl;
-	std::cout << "message size = " << message_size_ << std::endl;
+	LOG(DEBUG) << "offset = " << offset_;
+	LOG(DEBUG) << "message size = " << message_size_;
 	message_.PrintAll();
 }
 
@@ -83,16 +95,24 @@ MessageSet::MessageSet()
 MessageSet::MessageSet(char **buf, int message_set_size)
 {
 	int sum = 0;
-	while (sum != message_set_size)
+	while (sum < message_set_size)
 	{
-		OffsetAndMessage offset_message(buf);
-		offset_message_.push_back(offset_message);
-		sum += offset_message.CountSize();
+		try
+		{
+			OffsetAndMessage offset_message(buf, message_set_size, sum);
+			offset_message_.push_back(offset_message);
+			//sum += offset_message.CountSize();
+		}
+		catch (...)
+		{
+			break;
+		}
 	}
 }
 
 int MessageSet::CountSize()
 {
+	// NOTE: not 4
 	int size = 0;
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
 	{
@@ -112,7 +132,9 @@ void MessageSet::PrintMsg()
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
 	{
 		Message &msg = om_it->message_;
-		std::cout << "key: " << msg.key_ << "	value: " << msg.value_ << std::endl;
+		//std::cout << "key: " << msg.key_ << "	value: " << msg.value_ << std::endl;
+		//std::cout << "offset: " << om_it->offset_ << "	value: " << msg.value_ << std::endl;
+		std::cout << msg.value_ << std::endl;
 	}
 }
 
@@ -122,6 +144,5 @@ int64_t MessageSet::GetLastOffset()
 	int size = offset_message_.size();
 	return offset_message_[size - 1].offset_;
 }
-
 
 

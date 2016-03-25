@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "join_group_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 Member::Member(const std::string &member_id, const std::string &member_metadata)
 {
@@ -47,8 +46,7 @@ JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
 	leader_id_ = leader_id;
 	member_id_ = member_id;
 	members_ = members;
-
-	total_size_ = CountSize();
+	Response::SetTotalSize(CountSize());
 }
 
 JoinGroupResponse::JoinGroupResponse(char **buf)
@@ -86,9 +84,10 @@ JoinGroupResponse::JoinGroupResponse(char **buf)
 		members_.push_back(member);
 	}
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "CountSize are not equal";
+		LOG(ERROR) << "CountSize are not equal";
+		throw;
 	}
 }
 
@@ -111,19 +110,17 @@ int JoinGroupResponse::CountSize()
 
 void JoinGroupResponse::PrintAll()
 {
-	std::cout << "-----JoinGroupResponse-----" << std::endl;
+	LOG(DEBUG) << "-----JoinGroupResponse-----" << std::endl;
 	Response::PrintAll();
-	std::cout << "error code = " << error_code_ << std::endl;
-	std::cout << "generation id = " << generation_id_ << std::endl;
-	std::cout << "group protocol = " << group_protocol_ << std::endl;
-	std::cout << "leader id = " << leader_id_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
-	std::cout << "members:" << std::endl;
+	LOG(DEBUG) << "error code = " << error_code_;
+	LOG(DEBUG) << "generation id = " << generation_id_;
+	LOG(DEBUG) << "group protocol = " << group_protocol_;
+	LOG(DEBUG) << "leader id = " << leader_id_;
+	LOG(DEBUG) << "member id = " << member_id_;
+	LOG(DEBUG) << "members:";
 	for (auto it = members_.begin(); it != members_.end(); ++it)
-	{
 		it->PrintAll();
-	}
-	std::cout << "---------------------------" << std::endl;
+	LOG(DEBUG) << "---------------------------";
 }
 
 bool JoinGroupResponse::IsGroupLeader()

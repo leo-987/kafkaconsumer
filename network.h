@@ -1,4 +1,4 @@
- #ifndef _NETWORK_H_
+#ifndef _NETWORK_H_
 #define _NETWORK_H_
 
 #include <map>
@@ -32,10 +32,11 @@ public:
 	int Send(int fd, Request *request);
 	short GetApiKeyFromResponse(int correlation_id);
 	int PartitionAssignment();
-	int CompleteRead(int fd, char *buf); 
+	int CompleteRead(int fd, char *buf, int total_len); 
 	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
 	void FetchValidOffset();
 	int Fetching();
+	int CommitOffset(int32_t partition, int64_t offset);
 
 
 	typedef int (Network::*StateProc)(Event &event);
@@ -48,8 +49,7 @@ public:
 	int JoinGroup(Event &event);
 	int SyncGroup(Event &event);
 	int PartOfGroup(Event &event);
-
-	int HeartbeatTask();
+	int16_t HeartbeatTask();
 
 private:
 	KafkaClient *client_;

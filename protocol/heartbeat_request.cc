@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "heartbeat_request.h"
+#include "easylogging++.h"
 
 HeartbeatRequest::HeartbeatRequest(const std::string &group,
 		int generation_id, const std::string &member_id, int correlation_id)
@@ -24,12 +23,12 @@ int HeartbeatRequest::CountSize()
 
 void HeartbeatRequest::PrintAll()
 {
-	std::cout << "-----HeartbeatRequest-----" << std::endl;
+	LOG(DEBUG) << "-----HeartbeatRequest-----";
 	Request::PrintAll();
-	std::cout << "group id = " << group_ << std::endl;
-	std::cout << "generation id = " << generation_id_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
-	std::cout << "-------------------------" << std::endl;
+	LOG(DEBUG) << "group id = "      << group_;
+	LOG(DEBUG) << "generation id = " << generation_id_;
+	LOG(DEBUG) << "member id = "     << member_id_;
+	LOG(DEBUG) << "-------------------------";
 }
 
 void HeartbeatRequest::Package(char **buf)

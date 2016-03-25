@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "offset_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 PartitionOffsets::PartitionOffsets(char **buf)
 {
@@ -32,12 +31,10 @@ int PartitionOffsets::CountSize()
 
 void PartitionOffsets::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "error code = " << error_code_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "error code = " << error_code_;
 	for (auto o_it = offset_array_.begin(); o_it != offset_array_.end(); ++o_it)
-	{
-		std::cout << "offset = " << *o_it << std::endl;
-	}
+		LOG(DEBUG) << "offset = " << *o_it;
 }
 
 
@@ -70,11 +67,9 @@ int TopicPartitionOR::CountSize()
 
 void TopicPartitionOR::PrintAll()
 {
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto po_it = partition_offset_array_.begin(); po_it != partition_offset_array_.end(); ++po_it)
-	{
 		po_it->PrintAll();
-	}
 }
 
 OffsetResponse::OffsetResponse(char **buf)
@@ -88,9 +83,10 @@ OffsetResponse::OffsetResponse(char **buf)
 		topic_partition_array_.push_back(tp);
 	}
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "CountSize are not equal";
+		LOG(ERROR) << "CountSize are not equal";
+		throw;
 	}
 }
 
@@ -108,13 +104,11 @@ int OffsetResponse::CountSize()
 
 void OffsetResponse::PrintAll()
 {
-	std::cout << "-----OffsetResponse-----" << std::endl;
+	LOG(DEBUG) << "-----OffsetResponse-----";
 	Response::PrintAll();
 	for (auto tp_it = topic_partition_array_.begin(); tp_it != topic_partition_array_.end(); ++tp_it)
-	{
 		tp_it->PrintAll();
-	}
-	std::cout << "------------------------" << std::endl;
+	LOG(DEBUG) << "------------------------";
 }
 
 long OffsetResponse::GetNewOffset()

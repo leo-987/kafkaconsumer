@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "fetch_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 // Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet
 PartitionInfo::PartitionInfo(char **buf)
@@ -34,10 +33,10 @@ int PartitionInfo::CountSize()
 
 void PartitionInfo::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "error code = " << error_code_ << std::endl;
-	std::cout << "high water mark offset = " << high_water_mark_offset_ << std::endl;
-	std::cout << "message set size = " << message_set_size_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "error code = " << error_code_;
+	LOG(DEBUG) << "high water mark offset = " << high_water_mark_offset_;
+	LOG(DEBUG) << "message set size = " << message_set_size_;
 	message_set_.PrintAll();
 }
 
@@ -53,6 +52,7 @@ TopicPartitionInfo::TopicPartitionInfo(char **buf)
 	// partitions
 	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
+	
 	for (int i = 0; i < array_size; i++)
 	{
 		PartitionInfo partition_info(buf);
@@ -75,7 +75,7 @@ int TopicPartitionInfo::CountSize()
 
 void TopicPartitionInfo::PrintAll()
 {
-	std::cout << "topic name = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic name = " << topic_;
 
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
@@ -93,6 +93,7 @@ FetchResponse::FetchResponse(char **buf)
 
 	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
+
 	for (int i = 0; i < array_size; i++)
 	{
 		TopicPartitionInfo topic_partition_info(buf);
@@ -102,13 +103,13 @@ FetchResponse::FetchResponse(char **buf)
 	//throttle_time_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	if (total_size_ != CountSize())
-	{
-		throw "CountSize are not equal";
-	}
+	//if (total_size_ != CountSize())
+	//{
+	//	throw "CountSize are not equal";
+	//}
 
-	has_message_ = CheckHasMessage();
-	StoreLastOffsets();
+	//has_message_ = CheckHasMessage();
+	//StoreLastOffsets();
 }
 
 int FetchResponse::CountSize()
@@ -126,14 +127,14 @@ int FetchResponse::CountSize()
 
 void FetchResponse::PrintAll()
 {
-	std::cout << "-----FetchResponse-----" << std::endl;
+	LOG(DEBUG) << "-----FetchResponse-----";
 	Response::PrintAll();
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 	{
 		tp_it->PrintAll();
 	}
-	std::cout << "throttle time = " << throttle_time_ << std::endl;
-	std::cout << "-----------------------" << std::endl;
+	LOG(DEBUG) << "throttle time = " << throttle_time_;
+	LOG(DEBUG) << "-----------------------";
 
 }
 
@@ -151,6 +152,7 @@ void FetchResponse::PrintTopicMsg()
 
 		MessageSet &msg = p.message_set_;
 		//std::cout << "topic: " << tp.topic_ << std::endl;
+		//std::cout << "partition: " << p.partition_ << std::endl;
 		msg.PrintMsg();
 	}
 }
@@ -177,7 +179,13 @@ bool FetchResponse::HasMessage()
 
 bool FetchResponse::HasMessage(int32_t partition)
 {
-	if (partition_last_offset_.find(partition) != partition_last_offset_.end())
+	//if (partition_last_offset_.find(partition) != partition_last_offset_.end())
+	//	return true;
+	//else
+	//	return false;
+	
+	//std::cout << "message_set_size_ = " << topic_partitions_[0].partitions_info_[0].message_set_size_ << std::endl;
+	if (topic_partitions_[0].partitions_info_[0].message_set_size_ != 0)
 		return true;
 	else
 		return false;
@@ -185,7 +193,8 @@ bool FetchResponse::HasMessage(int32_t partition)
 
 int64_t FetchResponse::GetLastOffset(int32_t partition)
 {
-	return partition_last_offset_[partition];
+	//return partition_last_offset_[partition];
+	return topic_partitions_[0].partitions_info_[0].message_set_.GetLastOffset();
 }
 
 void FetchResponse::StoreLastOffsets()
@@ -203,6 +212,5 @@ void FetchResponse::StoreLastOffsets()
 		partition_last_offset_[p.partition_] = msg.GetLastOffset();
 	}
 }
-
 
 

@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "group_coordinator_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 #if 0
 GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short error_code,
@@ -29,7 +28,7 @@ GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	(*buf) += host_size;
 	coordinator_port_ = Util::NetBytesToInt(*buf); 
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
 		throw "total size != count size are not equal";
 	}
@@ -44,13 +43,13 @@ int GroupCoordinatorResponse::CountSize()
 
 void GroupCoordinatorResponse::PrintAll()
 {
-	std::cout << "-----GroupCoordinatorResponse-----" << std::endl;
+	LOG(DEBUG) << "-----GroupCoordinatorResponse-----";
 	Response::PrintAll();
-	std::cout << "error code = " << error_code_ << std::endl;
-	std::cout << "coordinator id = " << coordinator_id_ << std::endl;
-	std::cout << "coordinator host = " << coordinator_host_ << std::endl;
-	std::cout << "coordinator port = " << coordinator_port_ << std::endl;
-	std::cout << "----------------------------------" << std::endl;
+	LOG(DEBUG) << "error code = " << error_code_;
+	LOG(DEBUG) << "coordinator id = " << coordinator_id_;
+	LOG(DEBUG) << "coordinator host = " << coordinator_host_;
+	LOG(DEBUG) << "coordinator port = " << coordinator_port_;
+	LOG(DEBUG) << "----------------------------------";
 }
 
 int32_t GroupCoordinatorResponse::GetCoordinatorId()

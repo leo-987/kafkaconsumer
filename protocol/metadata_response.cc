@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "metadata_response.h"
 #include "util.h"
+#include "easylogging++.h"
 
 #if 0
 Broker::Broker(int fd, int node_id, const std::string &host, int port)
@@ -101,15 +100,15 @@ int PartitionMetadata::CountSize()
 
 void PartitionMetadata::PrintAll()
 {
-	std::cout << "partition error code = " << partition_error_code_ << std::endl;
-	std::cout << "partition id = " << partition_id_ << std::endl;
-	std::cout << "leader = " << leader_ << std::endl;
+	LOG(DEBUG) << "partition error code = " << partition_error_code_;
+	LOG(DEBUG) << "partition id = " << partition_id_;
+	LOG(DEBUG) << "leader = " << leader_;
 
 	for (auto it = replicas_.begin(); it != replicas_.end(); ++it)
-		std::cout << "replicas = " << *it << std::endl;
+		LOG(DEBUG) << "replicas = " << *it;
 
 	for (auto it = isr_.begin(); it != isr_.end(); ++it)
-		std::cout << "isr = " << *it << std::endl;
+		LOG(DEBUG) << "isr = " << *it;
 }
 
 TopicMetadata::TopicMetadata(short error_code, const std::string &topic_name,
@@ -156,8 +155,8 @@ int TopicMetadata::CountSize()
 
 void TopicMetadata::PrintAll()
 {
-	std::cout << "topic error code = " << topic_error_code_ << std::endl;
-	std::cout << "topic name = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic error code = " << topic_error_code_;
+	LOG(DEBUG) << "topic name = " << topic_;
 
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
 		it->PrintAll();
@@ -184,9 +183,10 @@ MetadataResponse::MetadataResponse(char **buf)
 		topic_metadata_.push_back(topic_metadata);
 	}
 
-	if (total_size_ != CountSize())
+	if (Response::GetTotalSize() != CountSize())
 	{
-		throw "CountSize are not equal";
+		LOG(ERROR) << "CountSize are not equal";
+		throw;
 	}
 }
 
@@ -209,14 +209,13 @@ int MetadataResponse::CountSize()
 
 void MetadataResponse::PrintAll()
 {
-	std::cout << "-----MetadataResponse-----" << std::endl;
+	LOG(DEBUG) << "-----MetadataResponse-----";
 	Response::PrintAll();
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 		b_it->PrintAll();
-
 	for (auto t_it = topic_metadata_.begin(); t_it != topic_metadata_.end(); ++t_it)
 		t_it->PrintAll();
-	std::cout << "--------------------------" << std::endl;
+	LOG(DEBUG) << "--------------------------";
 }
 
 int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
@@ -239,7 +238,7 @@ void MetadataResponse::ParseBrokers(std::map<int, Broker> &brokers)
 		int broker_id = GetBrokerIdFromHostname(b.host_);
 		if (broker_id < 0)
 		{
-			std::cout << "error: broker id not found" << std::endl;
+			LOG(DEBUG) << "error: broker id not found";
 			continue;
 		}
 
@@ -267,6 +266,5 @@ void MetadataResponse::ParsePartitions(std::map<int, Partition> &partitions)
 		partitions.insert({partition.GetPartitionId(), partition});
 	}
 }
-
 
 

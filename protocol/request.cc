@@ -1,9 +1,9 @@
-#include <iostream>
 #include <arpa/inet.h>
 #include <string.h>
 
 #include "request.h"
 #include "member_assignment.h"
+#include "easylogging++.h"
 
 //------------------------------Head
 Request::Request(short api_key, int correlation_id, short api_version, std::string client_id)
@@ -32,11 +32,11 @@ int Request::CountSize()
 
 void Request::PrintAll()
 {
-	std::cout << "total size = " << total_size_ << std::endl;
-	std::cout << "api key = " << api_key_ << std::endl;
-	std::cout << "api version = " << api_version_ << std::endl;
-	std::cout << "correlation id = " << correlation_id_ << std::endl;
-	std::cout << "client id = " << client_id_ << std::endl;
+	LOG(DEBUG) << "total size = "     << total_size_;
+	LOG(DEBUG) << "api key = "        << api_key_;
+	LOG(DEBUG) << "api version = "    << api_version_;
+	LOG(DEBUG) << "correlation id = " << correlation_id_;
+	LOG(DEBUG) << "client id = "      << client_id_;
 }
 
 void Request::Package(char **buf)
