@@ -31,8 +31,8 @@ int Member::CountSize()
 
 void Member::PrintAll()
 {
-	std::cout << "member id = " << member_id_ << std::endl;
-	std::cout << "member metadata = " << member_metadata_ << std::endl;
+	LOG(DEBUG) << "member id = " << member_id_;
+	LOG(DEBUG) << "member metadata = " << member_metadata_;
 }
 
 JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
@@ -110,7 +110,7 @@ int JoinGroupResponse::CountSize()
 
 void JoinGroupResponse::PrintAll()
 {
-	LOG(DEBUG) << "-----JoinGroupResponse-----" << std::endl;
+	LOG(DEBUG) << "-----JoinGroupResponse-----";
 	Response::PrintAll();
 	LOG(DEBUG) << "error code = " << error_code_;
 	LOG(DEBUG) << "generation id = " << generation_id_;

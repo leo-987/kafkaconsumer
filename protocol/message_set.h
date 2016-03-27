@@ -25,7 +25,7 @@ private:
 class OffsetAndMessage {
 public:
 	OffsetAndMessage();
-	OffsetAndMessage(char **buf, int message_set_size, int &sum);
+	OffsetAndMessage(char **buf, int message_set_size, int &sum, int &invalid_bytes);
 
 	int CountSize();
 	void PrintAll();
@@ -40,7 +40,7 @@ private:
 class MessageSet {
 public:
 	MessageSet();
-	MessageSet(char **buf, int message_set_size);
+	MessageSet(char **buf, int message_set_size, int &invalid_bytes);
 
 	int CountSize();
 	void PrintAll();

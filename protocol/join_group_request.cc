@@ -1,7 +1,5 @@
-#include <iostream>
-
 #include "join_group_request.h"
-
+#include "easylogging++.h"
 
 ProtocolMetadata::ProtocolMetadata(const std::vector<std::string> &topics)
 {
@@ -106,23 +104,23 @@ int JoinGroupRequest::CountSize()
 
 void JoinGroupRequest::PrintAll()
 {
-	std::cout << "-----JoinGroupRequest-----" << std::endl;
+	LOG(DEBUG) << "-----JoinGroupRequest-----";
 	Request::PrintAll();
-	std::cout << "group id = " << group_id_ << std::endl;
-	std::cout << "session timeout = " << session_timeout_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
-	std::cout << "protocol type = " << protocol_type_ << std::endl;
+	LOG(DEBUG) << "group id = " << group_id_;
+	LOG(DEBUG) << "session timeout = " << session_timeout_;
+	LOG(DEBUG) << "member id = " << member_id_;
+	LOG(DEBUG) << "protocol type = " << protocol_type_;
 
 	for (unsigned int i = 0; i < group_protocols_.size(); i++)
 	{
 		GroupProtocol &gp = group_protocols_[i];
-		std::cout << "	assignment strategy = " << gp.assignment_strategy_ << std::endl;
-		std::cout << "	version = " << gp.protocol_metadata_.version_ << std::endl;
+		LOG(DEBUG) << "	assignment strategy = " << gp.assignment_strategy_;
+		LOG(DEBUG) << "	version = " << gp.protocol_metadata_.version_;
 		for (unsigned int i = 0; i < gp.protocol_metadata_.subscription_.size(); i++)
-			std::cout << "	subscription = " << gp.protocol_metadata_.subscription_[i] << std::endl;
-		std::cout << "	user data = " << gp.protocol_metadata_.user_data_ << std::endl;
+			LOG(DEBUG) << "	subscription = " << gp.protocol_metadata_.subscription_[i];
+		LOG(DEBUG) << "	user data = " << gp.protocol_metadata_.user_data_;
 	}
-	std::cout << "--------------------------" << std::endl;
+	LOG(DEBUG) << "--------------------------";
 }
 
 void JoinGroupRequest::Package(char **buf)

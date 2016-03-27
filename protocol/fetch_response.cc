@@ -3,13 +3,14 @@
 #include "easylogging++.h"
 
 // Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet
-PartitionInfo::PartitionInfo(char **buf)
+PartitionInfo::PartitionInfo(char **buf, int &invalid_bytes)
 {
 	partition_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(error_code_ != 0, ERROR) << "error code = " << error_code_;
 
 	long net_high_water_mark;
 	memcpy(&net_high_water_mark, *buf, 8);
@@ -22,8 +23,9 @@ PartitionInfo::PartitionInfo(char **buf)
 	message_set_size_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
+	//std::cout << "message set size = " << message_set_size_ << std::endl;
 	if (message_set_size_ != 0)
-		message_set_ = MessageSet(buf, message_set_size_);
+		message_set_ = MessageSet(buf, message_set_size_, invalid_bytes);
 }
 
 int PartitionInfo::CountSize()
@@ -40,7 +42,7 @@ void PartitionInfo::PrintAll()
 	message_set_.PrintAll();
 }
 
-// TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]
+//----------------------------------------------------------
 TopicPartitionInfo::TopicPartitionInfo(char **buf)
 {
 	// topic name
@@ -53,9 +55,10 @@ TopicPartitionInfo::TopicPartitionInfo(char **buf)
 	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 	
+	invalid_bytes_ = 0;
 	for (int i = 0; i < array_size; i++)
 	{
-		PartitionInfo partition_info(buf);
+		PartitionInfo partition_info(buf, invalid_bytes_);
 		partitions_info_.push_back(partition_info);
 	}
 }
@@ -83,7 +86,12 @@ void TopicPartitionInfo::PrintAll()
 	}
 }
 
-// [TopicName [Partition ErrorCode HighwaterMarkOffset MessageSetSize MessageSet]] ThrottleTime
+int TopicPartitionInfo::GetInvalidBytes()
+{
+	return invalid_bytes_;
+}
+
+//----------------------------------------------------------
 FetchResponse::FetchResponse(char **buf)
 	: Response(ApiKey::FetchType, buf)
 {
@@ -103,13 +111,12 @@ FetchResponse::FetchResponse(char **buf)
 	//throttle_time_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	//if (total_size_ != CountSize())
-	//{
-	//	throw "CountSize are not equal";
-	//}
-
-	//has_message_ = CheckHasMessage();
-	//StoreLastOffsets();
+	TopicPartitionInfo &tp = topic_partitions_[0];
+	if (Response::GetTotalSize() - tp.GetInvalidBytes() != CountSize())
+	{
+		LOG(ERROR) << "Size are not equal";
+		throw;
+	}
 }
 
 int FetchResponse::CountSize()
@@ -157,60 +164,30 @@ void FetchResponse::PrintTopicMsg()
 	}
 }
 
-bool FetchResponse::CheckHasMessage()
+int64_t FetchResponse::GetLastOffset()
 {
-	// XXX: we assume only one topic
-	TopicPartitionInfo &tp = topic_partitions_[0];
-	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
-
-	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
-	{
-		PartitionInfo &p = *p_it;
-		if (p.message_set_size_ != 0)
-			return true;
-	}
-	return false;
-}
-
-bool FetchResponse::HasMessage()
-{
-	return has_message_;
-}
-
-bool FetchResponse::HasMessage(int32_t partition)
-{
-	//if (partition_last_offset_.find(partition) != partition_last_offset_.end())
-	//	return true;
-	//else
-	//	return false;
-	
-	//std::cout << "message_set_size_ = " << topic_partitions_[0].partitions_info_[0].message_set_size_ << std::endl;
 	if (topic_partitions_[0].partitions_info_[0].message_set_size_ != 0)
-		return true;
+		return -1;
 	else
-		return false;
+		return topic_partitions_[0].partitions_info_[0].message_set_.GetLastOffset();
 }
 
 int64_t FetchResponse::GetLastOffset(int32_t partition)
 {
-	//return partition_last_offset_[partition];
-	return topic_partitions_[0].partitions_info_[0].message_set_.GetLastOffset();
-}
-
-void FetchResponse::StoreLastOffsets()
-{
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = topic_partitions_[0];
 	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
 		PartitionInfo &p = *p_it;
-		if (p.message_set_size_ == 0)
+		if (p.partition_ != partition || p.message_set_size_ == 0)
 			continue;
 
 		MessageSet &msg = p_it->message_set_;
-		partition_last_offset_[p.partition_] = msg.GetLastOffset();
+		return msg.GetLastOffset();
 	}
+	return -1;
 }
+
 
 

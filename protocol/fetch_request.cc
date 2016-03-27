@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "fetch_request.h"
 #include "request_response_type.h"
+#include "easylogging++.h"
 
 PartitionFM::PartitionFM(int32_t partition, int64_t fetch_offset, int32_t max_bytes)
 {
@@ -17,9 +16,9 @@ int PartitionFM::CountSize()
 
 void PartitionFM::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "fetch offset = " << fetch_offset_ << std::endl;
-	std::cout << "max bytes = " << max_bytes_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "fetch offset = " << fetch_offset_;
+	LOG(DEBUG) << "max bytes = " << max_bytes_;
 }
 
 void PartitionFM::Package(char **buf)
@@ -64,7 +63,7 @@ int TopicPartitionFM::CountSize()
 
 void TopicPartitionFM::PrintAll()
 {
-	std::cout << "topic name = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic name = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
 		p_it->PrintAll();
 }
@@ -117,14 +116,14 @@ int FetchRequest::CountSize()
 
 void FetchRequest::PrintAll()
 {
-	std::cout << "-----FetchRequest-----" << std::endl;
+	LOG(DEBUG) << "-----FetchRequest-----";
 	Request::PrintAll();
-	std::cout << "replica id = " << replica_id_ << std::endl;
-	std::cout << "max wait time = " << max_wait_time_ << std::endl;
-	std::cout << "min bytes = " << min_bytes_ << std::endl;
+	LOG(DEBUG) << "replica id = " << replica_id_;
+	LOG(DEBUG) << "max wait time = " << max_wait_time_;
+	LOG(DEBUG) << "min bytes = " << min_bytes_;
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 		tp_it->PrintAll();
-	std::cout << "----------------------" << std::endl;
+	LOG(DEBUG) << "----------------------";
 }
 
 void FetchRequest::Package(char **buf)

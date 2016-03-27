@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "sync_group_request.h"
+#include "easylogging++.h"
 
 GroupAssignment::GroupAssignment(const std::string &topic, const std::string &member_id,
 		const std::vector<int> &partitions)
@@ -20,7 +19,7 @@ int GroupAssignment::CountSize()
 
 void GroupAssignment::PrintAll()
 {
-	std::cout << "member id = " << member_id_ << std::endl;
+	LOG(DEBUG) << "member id = " << member_id_;
 	member_assignment_.PrintAll();
 }
 
@@ -86,16 +85,16 @@ int SyncGroupRequest::CountSize()
 
 void SyncGroupRequest::PrintAll()
 {
-	std::cout << "-----SyncGroupRequest-----" << std::endl;
+	LOG(DEBUG) << "-----SyncGroupRequest-----";
 	Request::PrintAll();
-	std::cout << "group id = " << group_id_ << std::endl;
-	std::cout << "generation id = " << generation_id_ << std::endl;
-	std::cout << "member id = " << member_id_ << std::endl;
+	LOG(DEBUG) << "group id = " << group_id_;
+	LOG(DEBUG) << "generation id = " << generation_id_;
+	LOG(DEBUG) << "member id = " << member_id_;
 	for (auto ga_it = group_assignment_.begin(); ga_it != group_assignment_.end(); ++ga_it)
 	{
 		ga_it->PrintAll();
 	}
-	std::cout << "-------------------------" << std::endl;
+	LOG(DEBUG) << "-------------------------";
 }
 
 void SyncGroupRequest::Package(char **buf)

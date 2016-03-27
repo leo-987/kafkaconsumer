@@ -1,9 +1,9 @@
-#include <iostream>
 #include <string.h>
 #include <arpa/inet.h>
 
 #include "member_assignment.h"
 #include "util.h"
+#include "easylogging++.h"
 
 PartitionAssignment::PartitionAssignment(const std::string &topic, const std::vector<int> &partitions)
 {
@@ -41,10 +41,10 @@ int PartitionAssignment::CountSize()
 
 void PartitionAssignment::PrintAll()
 {
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
 	{
-		std::cout << "partition = " << *p_it << std::endl;
+		LOG(DEBUG) << "partition = " << *p_it;
 	}
 }
 
@@ -129,12 +129,12 @@ int MemberAssignment::CountSize()
 
 void MemberAssignment::PrintAll()
 {
-	std::cout << "version = " << version_ << std::endl;
+	LOG(DEBUG) << "version = " << version_;
 	for (auto pa_it = partition_assignment_.begin(); pa_it != partition_assignment_.end(); ++pa_it)
 	{
 		pa_it->PrintAll();
 	}
-	std::cout << "user data = " << user_data_ << std::endl;
+	LOG(DEBUG) << "user data = " << user_data_;
 }
 
 void MemberAssignment::Package(char **buf)

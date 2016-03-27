@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "group_coordinator_request.h"
+#include "easylogging++.h"
 
 GroupCoordinatorRequest::GroupCoordinatorRequest(const std::string &group_id, int correlation_id)
 	: Request(ApiKey::GroupCoordinatorType, correlation_id)
@@ -16,10 +15,10 @@ int GroupCoordinatorRequest::CountSize()
 
 void GroupCoordinatorRequest::PrintAll()
 {
-	std::cout << "-----GroupCoordinatorRequest-----" << std::endl;
+	LOG(DEBUG) << "-----GroupCoordinatorRequest-----";
 	Request::PrintAll();
-	std::cout << "group id = " << group_ << std::endl;
-	std::cout << "---------------------------------" << std::endl;
+	LOG(DEBUG) << "group id = " << group_;
+	LOG(DEBUG) << "---------------------------------";
 }
 
 void GroupCoordinatorRequest::Package(char **buf)

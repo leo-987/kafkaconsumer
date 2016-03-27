@@ -35,7 +35,7 @@ public:
 	int CompleteRead(int fd, char *buf, int total_len); 
 	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
 	void FetchValidOffset();
-	int Fetching();
+	int FetchMessage();
 	int CommitOffset(int32_t partition, int64_t offset);
 
 

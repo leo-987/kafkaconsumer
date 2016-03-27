@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "offset_commit_request.h"
+#include "easylogging++.h"
 
 PartitionOM::PartitionOM(int32_t partition, int64_t offset, const std::string &metadata)
 {
@@ -16,9 +15,9 @@ int PartitionOM::CountSize()
 
 void PartitionOM::PrintAll()
 {
-	std::cout << "partition = " << partition_ << std::endl;
-	std::cout << "offset = " << offset_ << std::endl;
-	std::cout << "metadata = " << metadata_ << std::endl;
+	LOG(DEBUG) << "partition = " << partition_;
+	LOG(DEBUG) << "offset = " << offset_;
+	LOG(DEBUG) << "metadata = " << metadata_;
 }
 
 void PartitionOM::Package(char **buf)
@@ -56,7 +55,7 @@ int TopicPartitionOM::CountSize()
 
 void TopicPartitionOM::PrintAll()
 {
-	std::cout << "topic = " << topic_ << std::endl;
+	LOG(DEBUG) << "topic = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
 		p_it->PrintAll();
 }
@@ -100,15 +99,15 @@ int OffsetCommitRequest::CountSize()
 
 void OffsetCommitRequest::PrintAll()
 {
-	std::cout << "---------------OffsetCommitRequest--------------" << std::endl;
+	LOG(DEBUG) << "---------------OffsetCommitRequest--------------";
 	Request::PrintAll();
-	std::cout << "group = " << group_ << std::endl;
-	std::cout << "group generation id = " << group_generation_id_ << std::endl;
-	std::cout << "consumer id = " << consumer_id_ << std::endl;
-	std::cout << "retention time = " << retention_time_ << std::endl;
+	LOG(DEBUG) << "group = " << group_;
+	LOG(DEBUG) << "group generation id = " << group_generation_id_;
+	LOG(DEBUG) << "consumer id = " << consumer_id_;
+	LOG(DEBUG) << "retention time = " << retention_time_;
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 		tp_it->PrintAll();
-	std::cout << "------------------------------------------------" << std::endl;
+	LOG(DEBUG) << "------------------------------------------------";
 }
 
 void OffsetCommitRequest::Package(char **buf)

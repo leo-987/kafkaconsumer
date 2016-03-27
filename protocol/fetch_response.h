@@ -10,7 +10,7 @@
 
 class PartitionInfo {
 public:
-	PartitionInfo(char **buf);
+	PartitionInfo(char **buf, int &invalid_bytes);
 
 	int CountSize();
 	void PrintAll();
@@ -32,10 +32,12 @@ public:
 
 	int CountSize();
 	void PrintAll();
+	int GetInvalidBytes();
 
 	friend class FetchResponse;
 
 private:
+	int invalid_bytes_;
 	std::string topic_;
 	std::vector<PartitionInfo> partitions_info_;
 };
@@ -49,19 +51,12 @@ public:
 	virtual void PrintAll();
 
 	void PrintTopicMsg();
-	bool HasMessage();
-	bool HasMessage(int32_t partition);
 	int64_t GetLastOffset(int32_t partition);
+	int64_t GetLastOffset();
 	
 private:
 	int32_t throttle_time_;
 	std::vector<TopicPartitionInfo> topic_partitions_;
-
-	bool has_message_;
-	bool CheckHasMessage();
-
-	std::map<int32_t, int64_t> partition_last_offset_;
-	void StoreLastOffsets();
 };
 
 #endif

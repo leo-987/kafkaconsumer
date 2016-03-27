@@ -1,7 +1,6 @@
-#include <iostream>
-
 #include "broker.h"
 #include "util.h"
+#include "easylogging++.h"
 
 Broker::Broker()
 {
@@ -39,8 +38,8 @@ int Broker::CountSize()
 
 void Broker::PrintAll()
 {
-	std::cout << "fd = " << fd_ << std::endl;
-	std::cout << "id = " << id_ << std::endl;
-	std::cout << "host = " << host_ << std::endl;
-	std::cout << "port = " << port_ << std::endl;
+	LOG(DEBUG) << "fd = " << fd_;
+	LOG(DEBUG) << "id = " << id_;
+	LOG(DEBUG) << "host = " << host_;
+	LOG(DEBUG) << "port = " << port_;
 }

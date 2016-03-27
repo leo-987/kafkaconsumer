@@ -1,6 +1,5 @@
-#include <iostream>
-
 #include "metadata_request.h"
+#include "easylogging++.h"
 
 MetadataRequest::MetadataRequest(const std::vector<std::string> &topics, int correlation_id)
 	: Request(ApiKey::MetadataType, correlation_id)
@@ -26,11 +25,11 @@ int MetadataRequest::CountSize()
 
 void MetadataRequest::PrintAll()
 {
-	std::cout << "-----MetadataRequest-----" << std::endl;
+	LOG(DEBUG) << "-----MetadataRequest-----";
 	Request::PrintAll();
 	for (auto t_it = topics_.begin(); t_it != topics_.end(); ++t_it)
-		std::cout << "topic name = " << *t_it << std::endl;
-	std::cout << "-------------------------" << std::endl;
+		LOG(DEBUG) << "topic name = " << *t_it;
+	LOG(DEBUG) << "-------------------------";
 }
 
 void MetadataRequest::Package(char **buf)

@@ -50,7 +50,7 @@ OffsetAndMessage::OffsetAndMessage()
 {
 }
 
-OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum)
+OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum, int &invalid_bytes)
 {
 	long offset;
 	memcpy(&offset, *buf, 8);
@@ -61,16 +61,19 @@ OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum)
 	(*buf) += 8;
 	sum +=8;
 	if (sum >= message_set_size)
+	{
+		invalid_bytes += message_set_size - (sum - 8);
 		throw 1;
+	}
 
 	message_size_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 	sum +=4;
-	if (sum >= message_set_size || sum + message_size_ > message_set_size)
+	if (sum > message_set_size || sum + message_size_ > message_set_size)
+	{
+		invalid_bytes += message_set_size - (sum - 12);
 		throw 1;
-
-	//std::cout << "offset = " << offset_ << std::endl;
-	//std::cout << "message size = " << message_size_ << std::endl;
+	}
 
 	message_ = Message(buf);
 	sum += message_.CountSize();
@@ -92,19 +95,20 @@ MessageSet::MessageSet()
 {
 }
 
-MessageSet::MessageSet(char **buf, int message_set_size)
+MessageSet::MessageSet(char **buf, int message_set_size, int &invalid_bytes)
 {
 	int sum = 0;
-	while (sum < message_set_size)
+	while (sum != message_set_size)
 	{
 		try
 		{
-			OffsetAndMessage offset_message(buf, message_set_size, sum);
+			OffsetAndMessage offset_message(buf, message_set_size, sum, invalid_bytes);
 			offset_message_.push_back(offset_message);
 			//sum += offset_message.CountSize();
 		}
 		catch (...)
 		{
+			(*buf) += message_set_size - sum;
 			break;
 		}
 	}
