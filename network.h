@@ -10,6 +10,7 @@
 #include "partition.h"
 
 class KafkaClient;
+class PartitionOM;
 
 enum class Event {
 	STARTUP,
@@ -37,6 +38,7 @@ public:
 	void FetchValidOffset();
 	int FetchMessage();
 	int CommitOffset(int32_t partition, int64_t offset);
+	int CommitOffset(const std::vector<PartitionOM> &partitions);
 
 
 	typedef int (Network::*StateProc)(Event &event);

@@ -1,7 +1,7 @@
 #include "offset_commit_request.h"
 #include "easylogging++.h"
 
-PartitionOM::PartitionOM(int32_t partition, int64_t offset, const std::string &metadata)
+PartitionOM::PartitionOM(int32_t partition, int64_t offset, std::string metadata)
 {
 	partition_ = partition;
 	offset_ = offset;
@@ -41,7 +41,13 @@ void PartitionOM::Package(char **buf)
 TopicPartitionOM::TopicPartitionOM(const std::string &topic, int32_t partition, int64_t offset)
 {
 	topic_ = topic;
-	partitions_.push_back({partition, offset, ""});
+	partitions_.push_back({partition, offset});
+}
+
+TopicPartitionOM::TopicPartitionOM(const std::string &topic, const std::vector<PartitionOM> &partitions)
+{
+	topic_ = topic;
+	partitions_ = partitions;
 }
 
 int TopicPartitionOM::CountSize()
@@ -75,6 +81,7 @@ void TopicPartitionOM::Package(char **buf)
 		p_it->Package(buf);
 }
 
+//----------------------------------------
 OffsetCommitRequest::OffsetCommitRequest(const std::string &group, int32_t group_generation_id, const std::string &consumer_id, 
 		const std::string &topic, int32_t partition, int64_t offset, int correlation_id)
 	: Request(ApiKey::OffsetCommitType, correlation_id, ApiVersion::v2)
@@ -84,6 +91,18 @@ OffsetCommitRequest::OffsetCommitRequest(const std::string &group, int32_t group
 	consumer_id_ = consumer_id;
 	retention_time_ = -1;
 	topic_partitions_.push_back({topic, partition, offset});
+	total_size_ = CountSize();
+}
+
+OffsetCommitRequest::OffsetCommitRequest(const std::string &group, int32_t group_generation_id, const std::string &consumer_id, 
+		const std::string &topic, const std::vector<PartitionOM> &partitions, int correlation_id)
+	: Request(ApiKey::OffsetCommitType, correlation_id, ApiVersion::v2)
+{
+	group_ = group;
+	group_generation_id_ = group_generation_id;
+	consumer_id_ = consumer_id;
+	retention_time_ = -1;
+	topic_partitions_.push_back({topic, partitions});
 	total_size_ = CountSize();
 }
 

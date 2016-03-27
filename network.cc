@@ -491,6 +491,16 @@ int Network::CommitOffset(int32_t partition, int64_t offset)
 	delete r;
 }
 
+int Network::CommitOffset(const std::vector<PartitionOM> &partitions)
+{
+	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partitions);
+	SendRequestHandler(coordinator_, commit_request);
+	Response *r;
+	ReceiveResponseHandler(coordinator_, &r);
+	delete commit_request;
+	delete r;
+}
+
 int Network::FetchMessage()
 {
 #if 0
@@ -527,9 +537,7 @@ int Network::FetchMessage()
 		{
 			int partition = *p_it;
 			int64_t offset = partition_offset_[partition];
-
-			PartitionFM pfm(partition, offset);
-			fetch_partitions.push_back(pfm);
+			fetch_partitions.push_back({partition, offset});
 		}
 
 		int leader_id = bp_it->first;
@@ -541,15 +549,19 @@ int Network::FetchMessage()
 		FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
 		fetch_response->PrintTopicMsg();
 
+		std::vector<PartitionOM> commit_partitions;
 		for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 		{
 			int partition = *p_it;
 			int64_t offset = fetch_response->GetLastOffset(partition);
-			if (offset > 0)
-			{
-				CommitOffset(partition, offset + 1);
-			}
+			if (offset < 0)
+				continue;
+
+			commit_partitions.push_back({partition, offset + 1});
 		}
+
+		if (!commit_partitions.empty())
+			CommitOffset(commit_partitions);
 
 		delete fetch_request;
 		delete fetch_response;
