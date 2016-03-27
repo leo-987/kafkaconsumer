@@ -35,10 +35,10 @@ public:
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf, int total_len); 
 	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
-	void FetchValidOffset();
+	int16_t FetchValidOffset();
 	int FetchMessage();
-	int CommitOffset(int32_t partition, int64_t offset);
-	int CommitOffset(const std::vector<PartitionOM> &partitions);
+	int16_t CommitOffset(int32_t partition, int64_t offset);
+	int16_t CommitOffset(const std::vector<PartitionOM> &partitions);
 
 
 	typedef int (Network::*StateProc)(Event &event);

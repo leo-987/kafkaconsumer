@@ -12,6 +12,7 @@ public:
 
 	int CountSize();
 	void PrintAll();
+	int16_t GetErrorCode();
 	
 private:
 	int32_t partition_;
@@ -25,6 +26,7 @@ public:
 	int CountSize();
 	void PrintAll();
 
+	friend class OffsetCommitResponse;
 private:
 	std::string topic_;
 	std::vector<PartitionE> partitions_;
@@ -37,6 +39,7 @@ public:
 
 	virtual int CountSize();
 	virtual void PrintAll();
+	int16_t GetErrorCode();
 
 private:
 	std::vector<TopicPartitionE> topic_partitions_;

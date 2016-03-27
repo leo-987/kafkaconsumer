@@ -10,6 +10,7 @@ PartitionE::PartitionE(char **buf)
 
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(error_code_ != 0, ERROR) << "OffsetCommitResponse error code = " << error_code_;
 }
 
 int PartitionE::CountSize()
@@ -22,8 +23,13 @@ void PartitionE::PrintAll()
 	LOG(DEBUG) << "partition = " << partition_;
 	LOG(DEBUG) << "commit offset error code = " << error_code_;
 }
-	
 
+int16_t PartitionE::GetErrorCode()
+{
+	return error_code_;
+}
+
+//------------------------------------------------------
 TopicPartitionE::TopicPartitionE(char **buf)
 {
 	short topic_len = Util::NetBytesToShort(*buf);
@@ -56,6 +62,7 @@ void TopicPartitionE::PrintAll()
 		p_it->PrintAll();
 }
 
+//------------------------------------------------------
 OffsetCommitResponse::OffsetCommitResponse(char **buf)
 	: Response(ApiKey::OffsetCommitType, buf)
 {
@@ -91,5 +98,19 @@ void OffsetCommitResponse::PrintAll()
 		tp_it->PrintAll();
 	LOG(DEBUG) << "---------------------------------------------";
 }
+
+int16_t OffsetCommitResponse::GetErrorCode()
+{
+	std::vector<PartitionE> &partitions = topic_partitions_[0].partitions_;
+	for (auto p_it = partitions.begin(); p_it != partitions.end(); ++p_it)
+	{
+		int16_t error_code = p_it->GetErrorCode();
+		if (error_code != 0)
+			return error_code;
+	}
+	return 0;
+}
+
+
 
 

@@ -33,7 +33,7 @@ public:
 class JoinGroupRequest: public Request {
 public:
 	JoinGroupRequest(const std::string &group_id, const std::string &member_id,
-		const std::vector<std::string> &topics, int correlation_id = ApiKey::JoinGroupType);
+		const std::vector<std::string> &topics, int correlation_id = ApiKey::JoinGroupType, int32_t session_timeout = 30000);
 
 	virtual ~JoinGroupRequest() {}
 
@@ -42,7 +42,7 @@ public:
 	virtual void Package(char **buf);
 
 	std::string group_id_;
-	int session_timeout_;			// heartbeats maximum time
+	int32_t session_timeout_;		// heartbeats maximum time
 	std::string member_id_;			// When a member first joins the group, the memberId will be empty
 	std::string protocol_type_;		// "consumer"
 	std::vector<GroupProtocol> group_protocols_;

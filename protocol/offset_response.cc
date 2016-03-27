@@ -8,6 +8,7 @@ PartitionOffsets::PartitionOffsets(char **buf)
 	(*buf) += 4;
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(error_code_ != 0, ERROR) << "OffsetResponse error code = " << error_code_;
 
 	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;

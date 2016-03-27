@@ -20,6 +20,7 @@ PartitionOffsetInfo::PartitionOffsetInfo(char **buf)
 
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(error_code_ != 0, ERROR) << "OffsetFetchResponse error code = " << error_code_;
 }
 
 int PartitionOffsetInfo::CountSize()
@@ -82,9 +83,7 @@ void OffsetFetchResponse::PrintAll()
 	Response::PrintAll();
 	LOG(DEBUG) << "topic = " << topic_;
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
-	{
 		pi_it->PrintAll();
-	}
 	LOG(DEBUG) << "-----------------------------";
 }
 
@@ -101,7 +100,6 @@ int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset)
 
 		int partition = pi_it->partition_;
 		long offset = pi_it->offset_;
-		//partition_offset.insert({partition, offset});
 		partition_offset[partition] = offset;
 	}
 	return 0;

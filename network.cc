@@ -63,7 +63,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 
 	el::Configurations defaultConf;
 	defaultConf.setToDefault();
-	defaultConf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime [%level] %msg");
+	defaultConf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime [%level] %msg [%loc]");
 	defaultConf.set(el::Level::Global, el::ConfigurationType::ToStandardOutput, "false");
 	//defaultConf.set(el::Level::Global, el::ConfigurationType::Filename, "./logs/test.log");
 	defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
@@ -444,8 +444,9 @@ int Network::SyncGroup(Event &event)
 	return 0;
 }
 
-void Network::FetchValidOffset()
+int16_t Network::FetchValidOffset()
 {
+	int16_t error_code = 0;
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
 	SendRequestHandler(coordinator_, offset_fetch_request);
 	Response *response;
@@ -459,9 +460,6 @@ void Network::FetchValidOffset()
 	{
 		if (po_it->second != -1)
 			continue;
-
-		//std::cout << "partition = " << po_it->first << std::endl;
-		//std::cout << "offset = " << po_it->second << std::endl;
 
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
@@ -477,28 +475,37 @@ void Network::FetchValidOffset()
 		delete offset_request;
 		delete offset_response;
 
-		CommitOffset(po_it->first, po_it->second);
+		int16_t tmp_error = CommitOffset(po_it->first, po_it->second);
+		if (tmp_error != 0)
+			error_code = tmp_error;
 	}
+	return error_code;
 }
 
-int Network::CommitOffset(int32_t partition, int64_t offset)
+int16_t Network::CommitOffset(int32_t partition, int64_t offset)
 {
 	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset);
 	SendRequestHandler(coordinator_, commit_request);
 	Response *r;
 	ReceiveResponseHandler(coordinator_, &r);
+	OffsetCommitResponse *commit_response = dynamic_cast<OffsetCommitResponse*>(r);
+	int16_t error_code = commit_response->GetErrorCode();
 	delete commit_request;
 	delete r;
+	return error_code;
 }
 
-int Network::CommitOffset(const std::vector<PartitionOM> &partitions)
+int16_t Network::CommitOffset(const std::vector<PartitionOM> &partitions)
 {
 	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partitions);
 	SendRequestHandler(coordinator_, commit_request);
 	Response *r;
 	ReceiveResponseHandler(coordinator_, &r);
+	OffsetCommitResponse *commit_response = dynamic_cast<OffsetCommitResponse*>(r);
+	int16_t error_code = commit_response->GetErrorCode();
 	delete commit_request;
 	delete r;
+	return error_code;
 }
 
 int Network::FetchMessage()
@@ -575,14 +582,25 @@ int Network::PartOfGroup(Event &event)
 	{
 		case Event::FETCH:
 		{
-			FetchValidOffset();
-			FetchMessage();
-			int16_t error_code = HeartbeatTask();
+			int16_t error_code;
+			error_code = FetchValidOffset();
 			if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
 			{
 				// next state
 				current_state_ = &Network::JoinGroup;
 				event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+				break;
+			}
+
+			FetchMessage();
+
+			error_code = HeartbeatTask();
+			if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
+			{
+				// next state
+				current_state_ = &Network::JoinGroup;
+				event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+				break;
 			}
 			break;
 		}

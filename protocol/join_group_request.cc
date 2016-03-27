@@ -48,6 +48,7 @@ void ProtocolMetadata::Package(char **buf)
 	memcpy(*buf, user_data_.data(), user_data_.size());
 }
 
+//---------------------------------------------
 GroupProtocol::GroupProtocol(const std::vector<std::string> &topics)
 	: protocol_metadata_(topics)
 {
@@ -77,16 +78,17 @@ void GroupProtocol::Package(char **buf)
 	protocol_metadata_.Package(buf);
 }
 
+//----------------------------------------------
 JoinGroupRequest::JoinGroupRequest(const std::string &group_id, const std::string &member_id,
-			const std::vector<std::string> &topics, int correlation_id)
+			const std::vector<std::string> &topics, int correlation_id, int32_t session_timeout)
 	: Request(ApiKey::JoinGroupType, correlation_id)
 {
 	group_id_ = group_id;
-	session_timeout_ = 10000;
+	session_timeout_ = session_timeout;
 	member_id_ = member_id;
 	protocol_type_ = "consumer";
 
-	// only one group protocol
+	// we assume only one group protocol
 	GroupProtocol group_protocol(topics);
 	group_protocols_.push_back(group_protocol);
 	total_size_ = CountSize();
