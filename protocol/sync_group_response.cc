@@ -49,3 +49,8 @@ int SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
 		member_assignment_.ParsePartitions(output_partitions);
 	return 0;
 }
+
+int16_t SyncGroupResponse::GetErrorCode()
+{
+	return error_code_;
+}

@@ -71,7 +71,6 @@ void PartitionAssignment::Package(char **buf)
 
 MemberAssignment::MemberAssignment()
 {
-
 }
 
 MemberAssignment::MemberAssignment(const std::string &topic, const std::vector<int> &partitions)

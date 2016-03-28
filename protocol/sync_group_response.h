@@ -12,8 +12,9 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 	int ParsePartitions(std::vector<int> &output_partitions);
+	int16_t GetErrorCode();
 
-	short error_code_;
+	int16_t error_code_;
 	MemberAssignment member_assignment_;	// bytes
 };
 

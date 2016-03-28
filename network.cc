@@ -239,6 +239,11 @@ short Network::GetApiKeyFromResponse(int correlation_id)
 	return last_api_key_;
 }
 
+/* Range:
+ * p1 p2 p3 p4 p5
+ *  \ /   \ /  |
+ *   c1    c2  c3
+ */
 int Network::PartitionAssignment()
 {
 	int base = all_partitions_.size() / members_.size();
@@ -360,13 +365,14 @@ int Network::JoinGroup(Event &event)
 {
 	switch(event)
 	{
-		Response *response;
 		case Event::JOIN_WITH_EMPTY_CONSUMER_ID:
 		{
+			// first join
 			std::vector<std::string> topics({topic_});
 			std::string member_id = "";
 			JoinGroupRequest *join_request = new JoinGroupRequest(group_, member_id, topics);
 			SendRequestHandler(coordinator_, join_request);
+			Response *response;
 			ReceiveResponseHandler(coordinator_, &response);
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
 			generation_id_ = join_response->GetGenerationId();
@@ -379,13 +385,35 @@ int Network::JoinGroup(Event &event)
 			}
 
 			delete join_request;
+			delete response;
+			break;
+		}
+		case Event::JOIN_WITH_PREVIOUS_CONSUMER_ID:
+		{
+			// rejoin
+			std::vector<std::string> topics({topic_});
+			JoinGroupRequest *join_request = new JoinGroupRequest(group_, member_id_, topics);
+			SendRequestHandler(coordinator_, join_request);
+			Response *response;
+			ReceiveResponseHandler(coordinator_, &response);
+			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
+			generation_id_ = join_response->GetGenerationId();
+			member_id_ = join_response->GetMemberId();
+			amIGroupLeader_ = join_response->IsGroupLeader();
+			if (amIGroupLeader_ == true)
+			{
+				members_ = join_response->GetAllMembers();
+				PartitionAssignment();
+			}
+
+			delete join_request;
+			delete response;
 			break;
 		}
 		default:
 		{
 			break;
 		}
-		delete response;
 	}
 
 	// next state
@@ -411,18 +439,21 @@ std::map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const
 int Network::SyncGroup(Event &event)
 {
 	SyncGroupRequest *sync_request;
-	Response *response;
-
 	if (amIGroupLeader_ == true)
 		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_, member_partition_map_);
 	else
 		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_);
 
 	SendRequestHandler(coordinator_, sync_request);
+	Response *response;
 	ReceiveResponseHandler(coordinator_, &response);
 	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
-	sync_response->ParsePartitions(my_partitions_id_);
-	broker_owned_partition_ = CreateBrokerIdToOwnedPartitionMap(my_partitions_id_);
+	int16_t error_code = sync_response->GetErrorCode();
+	if (error_code == ErrorCode::NO_ERROR)
+	{
+		sync_response->ParsePartitions(my_partitions_id_);
+		broker_owned_partition_ = CreateBrokerIdToOwnedPartitionMap(my_partitions_id_);
+	}
 
 #if 0
 	for (auto i = broker_owned_partition_.begin(); i != broker_owned_partition_.end(); ++i)
@@ -436,7 +467,7 @@ int Network::SyncGroup(Event &event)
 #endif
 
 	delete sync_request;
-	delete response;
+	delete sync_response;
 
 	// next state
 	current_state_ = &Network::PartOfGroup;
@@ -588,7 +619,7 @@ int Network::PartOfGroup(Event &event)
 			{
 				// next state
 				current_state_ = &Network::JoinGroup;
-				event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+				event = Event::JOIN_WITH_PREVIOUS_CONSUMER_ID;
 				break;
 			}
 
@@ -599,7 +630,7 @@ int Network::PartOfGroup(Event &event)
 			{
 				// next state
 				current_state_ = &Network::JoinGroup;
-				event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+				event = Event::JOIN_WITH_PREVIOUS_CONSUMER_ID;
 				break;
 			}
 			break;
