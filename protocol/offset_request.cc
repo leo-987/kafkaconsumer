@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "offset_request.h"
 #include "easylogging++.h"
 
@@ -26,7 +27,10 @@ void PartitionTime::Package(char **buf)
 	memcpy(*buf, &partition, 4);
 	(*buf) += 4;
 
-	int64_t time = htonll(time_);
+	// for Mac
+	//int64_t time = htonll(time_);
+	// for Linux
+	int64_t time = be64toh(time_);
 	memcpy(*buf, &time, 8);
 	(*buf) += 8;
 

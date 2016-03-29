@@ -41,13 +41,9 @@ void SyncGroupResponse::PrintAll()
 	LOG(DEBUG) << "---------------------------";
 }
 
-int SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
+void SyncGroupResponse::ParsePartitions(std::vector<int> &output_partitions)
 {
-	if (error_code_ != 0)
-		return -1;
-	else
-		member_assignment_.ParsePartitions(output_partitions);
-	return 0;
+	member_assignment_.ParsePartitions(output_partitions);
 }
 
 int16_t SyncGroupResponse::GetErrorCode()

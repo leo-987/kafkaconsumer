@@ -9,8 +9,8 @@ PartitionOffsetInfo::PartitionOffsetInfo(char **buf)
 
 	long offset;
 	memcpy(&offset, *buf, 8);
-	//offset_ = be64toh(offset);
-	offset_ = ntohll(offset);
+	offset_ = be64toh(offset);
+	//offset_ = ntohll(offset);
 	(*buf) += 8;
 
 	short metadata_length = Util::NetBytesToShort(*buf);
@@ -32,7 +32,7 @@ void PartitionOffsetInfo::PrintAll()
 {
 	LOG(DEBUG) << "partition  = " << partition_;
 	LOG(DEBUG) << "offset     = " << offset_;
-	LOG(DEBUG) << "metadata   = " << metadata_ << std::endl;
+	LOG(DEBUG) << "metadata   = " << metadata_;
 	LOG(DEBUG) << "error code = " << error_code_;
 }
 

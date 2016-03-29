@@ -19,19 +19,18 @@ public:
 	short error_code_;
 };
 
+// format: [TopicName [Partition Offset Metadata ErrorCode]]
 class OffsetFetchResponse: public Response {
 public:
 	OffsetFetchResponse(char **buf);
-
 	virtual ~OffsetFetchResponse() {}
 
 	virtual int CountSize();
 	virtual void PrintAll();
-
 	int ParseOffset(std::map<int, long> &partition_offset);
 	
 private:
-	// XXX: [TopicName [Partition Offset Metadata ErrorCode]]
+	// XXX: format
 	std::string topic_;
 	std::vector<PartitionOffsetInfo> partitions_info_;
 };

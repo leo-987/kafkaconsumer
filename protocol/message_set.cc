@@ -55,9 +55,9 @@ OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum, i
 	long offset;
 	memcpy(&offset, *buf, 8);
 	// for Linux
-	//offset_ = be64toh(offset);
+	offset_ = be64toh(offset);
 	// for Mac
-	offset_ = ntohll(offset);
+	//offset_ = ntohll(offset);
 	(*buf) += 8;
 	sum +=8;
 	if (sum >= message_set_size)

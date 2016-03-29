@@ -15,9 +15,9 @@ PartitionInfo::PartitionInfo(char **buf, int &invalid_bytes)
 	long net_high_water_mark;
 	memcpy(&net_high_water_mark, *buf, 8);
 	// for Linux
-	//high_water_mark_offset_ = be64toh(net_high_water_mark);
+	high_water_mark_offset_ = be64toh(net_high_water_mark);
 	// for Mac
-	high_water_mark_offset_ = ntohll(net_high_water_mark);
+	//high_water_mark_offset_ = ntohll(net_high_water_mark);
 	(*buf) += 8;
 
 	message_set_size_ = Util::NetBytesToInt(*buf);

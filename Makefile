@@ -1,6 +1,6 @@
 CC = g++
 TARGET = main
-CXXFLAGS = -std=c++11 -c -Wall -g -I./ -I./protocol -I./utils
+CXXFLAGS = -std=c++0x -c -Wall -g -I./ -I./protocol -I./utils
 LDFLAGS = 
 SOURCES = main.cc kafka_client.cc network.cc\
 		  utils/util.cc node.cc utils/net_util.cc\

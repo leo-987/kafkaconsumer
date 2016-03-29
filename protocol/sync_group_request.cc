@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "sync_group_request.h"
 #include "easylogging++.h"
 

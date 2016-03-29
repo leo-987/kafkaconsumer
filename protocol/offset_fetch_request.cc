@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "offset_fetch_request.h"
 #include "easylogging++.h"
 

@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "fetch_request.h"
 #include "request_response_type.h"
 #include "easylogging++.h"
@@ -28,9 +29,9 @@ void PartitionFM::Package(char **buf)
 	(*buf) += 4;
 
 	// for Linux
-	//long fetch_offset = htobe64(fetch_offset_);
+	long fetch_offset = htobe64(fetch_offset_);
 	// for Mac
-	long fetch_offset = htonll(fetch_offset_);
+	//long fetch_offset = htonll(fetch_offset_);
 	memcpy(*buf, &fetch_offset, 8);
 	(*buf) += 8;
 

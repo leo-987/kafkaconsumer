@@ -2,6 +2,7 @@
 #define _UTIL_H_
 
 #include <vector>
+#include <string>
 
 namespace Util
 {

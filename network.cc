@@ -29,7 +29,7 @@
 
 #include "easylogging++.h"
 
-INITIALIZE_EASYLOGGINGPP
+_INITIALIZE_EASYLOGGINGPP
 
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
@@ -59,15 +59,8 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 	event_ = Event::STARTUP;
 	current_state_ = &Network::Initial;
 
-	//std::cout << "Network init OK!" << std::endl;
-
-	el::Configurations defaultConf;
-	defaultConf.setToDefault();
-	defaultConf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime [%level] %msg [%loc]");
-	defaultConf.set(el::Level::Global, el::ConfigurationType::ToStandardOutput, "false");
-	//defaultConf.set(el::Level::Global, el::ConfigurationType::Filename, "./logs/test.log");
-	defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
-	el::Loggers::reconfigureLogger("default", defaultConf);
+	easyloggingpp::Configurations conf_from_file("easylogging.conf");
+	easyloggingpp::Loggers::reconfigureAllLoggers(conf_from_file);
 }
 
 Network::~Network()
@@ -423,10 +416,10 @@ int Network::JoinGroup(Event &event)
 	return 0;
 }
 
+// Create mapping: leader id -> [partitions]
 std::map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions)
 {
 	std::map<int, std::vector<int>> result;
-
 	for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 	{
 		int partition_id = *p_it;
@@ -449,6 +442,7 @@ int Network::SyncGroup(Event &event)
 	ReceiveResponseHandler(coordinator_, &response);
 	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
 	int16_t error_code = sync_response->GetErrorCode();
+	my_partitions_id_.clear();
 	if (error_code == ErrorCode::NO_ERROR)
 	{
 		sync_response->ParsePartitions(my_partitions_id_);

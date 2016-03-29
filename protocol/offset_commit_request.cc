@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "offset_commit_request.h"
 #include "easylogging++.h"
 
@@ -26,7 +27,10 @@ void PartitionOM::Package(char **buf)
 	memcpy(*buf, &partition, 4);
 	(*buf) += 4;
 
-	int64_t offset = htonll(offset_);
+	// For Mac
+	//int64_t offset = htonll(offset_);
+	// For Linux 
+	int64_t offset = htobe64(offset_);
 	memcpy(*buf, &offset, 8);
 	(*buf) += 8;
 
@@ -149,7 +153,10 @@ void OffsetCommitRequest::Package(char **buf)
 	memcpy(*buf, consumer_id_.c_str(), consumer_id_.length());
 	(*buf) += consumer_id_.length();
 
-	int64_t retention_time = htonll(retention_time_);
+	// For Mac
+	//int64_t retention_time = htonll(retention_time_);
+	// For Linux 
+	int64_t retention_time = htobe64(retention_time_);
 	memcpy(*buf, &retention_time, 8);
 	(*buf) += 8;
 

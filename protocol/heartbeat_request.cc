@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "heartbeat_request.h"
 #include "easylogging++.h"
 

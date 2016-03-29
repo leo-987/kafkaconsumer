@@ -17,9 +17,9 @@ PartitionOffsets::PartitionOffsets(char **buf)
 		long offset;
 		memcpy(&offset, *buf, 8);
 		// for Linux
-		//high_water_mark_offset_ = be64toh(net_high_water_mark);
+		offset = be64toh(offset);
 		// for Mac
-		offset = ntohll(offset);
+		//offset = ntohll(offset);
 		(*buf) += 8;
 		offset_array_.push_back(offset);
 	}

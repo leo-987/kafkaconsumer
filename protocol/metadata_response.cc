@@ -250,7 +250,14 @@ void MetadataResponse::ParseBrokers(std::map<int, Broker> &brokers)
 	for (auto b_it = brokers.begin(); b_it != brokers.end(); /* NULL */)
 	{
 		if (b_it->first < 0)
-			b_it = brokers.erase(b_it);
+		{
+			// for c++11
+			//b_it = brokers.erase(b_it);
+
+			auto to_erase = b_it;
+			++b_it;
+			brokers.erase(to_erase);
+		}
 		else
 			++b_it;
 	}
