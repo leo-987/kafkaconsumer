@@ -305,7 +305,6 @@ int Network::Initial(Event &event)
 		return -1;
 	}
 
-	Response *response;
 	std::vector<std::string> topics({topic_});
 	MetadataRequest *metadata_request = new MetadataRequest(topics);
 
@@ -313,18 +312,28 @@ int Network::Initial(Event &event)
 	auto b_it = brokers_.begin();
 	Broker *broker = &(b_it->second);
 	SendRequestHandler(broker, metadata_request);
+	Response *response;
 	ReceiveResponseHandler(broker, &response);
 	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
 
-	meta_response->ParseBrokers(brokers_);
-	meta_response->ParsePartitions(all_partitions_);
+	std::unordered_map<int, Broker> updated_brokers = meta_response->ParseBrokers(brokers_);
+	if (!updated_brokers.empty())
+	{
+		brokers_ = updated_brokers;
+		meta_response->ParsePartitions(all_partitions_);
+
+		// next state
+		current_state_ = &Network::DiscoverCoordinator;
+		event = Event::DISCOVER_COORDINATOR;
+	}
+	else
+	{
+		// Sleep and retry metadata request in next loop
+		sleep(5);
+	}
 
 	delete metadata_request;
 	delete response;
-
-	// next state
-	current_state_ = &Network::DiscoverCoordinator;
-	event = Event::DISCOVER_COORDINATOR;
 
 	return 0;
 }
@@ -342,7 +351,7 @@ int Network::DiscoverCoordinator(Event &event)
 	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
 
 	int32_t co_id = group_response->GetCoordinatorId();
-	coordinator_ = &brokers_[co_id];
+	coordinator_ = &brokers_.at(co_id);
 
 	delete group_request;
 	delete response;
@@ -423,7 +432,7 @@ std::map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const
 	for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 	{
 		int partition_id = *p_it;
-		int leader_id = all_partitions_[partition_id].GetLeaderId();
+		int leader_id = all_partitions_.at(partition_id).GetLeaderId();
 		result[leader_id].push_back(partition_id);
 	}
 	return result;
@@ -443,29 +452,37 @@ int Network::SyncGroup(Event &event)
 	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
 	int16_t error_code = sync_response->GetErrorCode();
 	my_partitions_id_.clear();
+	broker_owned_partition_.clear(); 
 	if (error_code == ErrorCode::NO_ERROR)
 	{
 		sync_response->ParsePartitions(my_partitions_id_);
 		broker_owned_partition_ = CreateBrokerIdToOwnedPartitionMap(my_partitions_id_);
+
+		// next state
+		current_state_ = &Network::PartOfGroup;
+		event = Event::FETCH;
+#if 0
+		for (auto i = broker_owned_partition_.begin(); i != broker_owned_partition_.end(); ++i)
+		{
+			std::cout << "broker " << i->first << std::endl;
+			for (auto j = i->second.begin(); j != i->second.end(); ++j)
+			{
+				std::cout << "partition " << *j << std::endl;
+			}
+		}
+#endif
+	}
+	else if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
+	{
+		// next state
+		current_state_ = &Network::JoinGroup;
+		event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
 	}
 
-#if 0
-	for (auto i = broker_owned_partition_.begin(); i != broker_owned_partition_.end(); ++i)
-	{
-		std::cout << "broker " << i->first << std::endl;
-		for (auto j = i->second.begin(); j != i->second.end(); ++j)
-		{
-			std::cout << "partition " << *j << std::endl;
-		}
-	}
-#endif
 
 	delete sync_request;
 	delete sync_response;
 
-	// next state
-	current_state_ = &Network::PartOfGroup;
-	event = Event::FETCH;
 	return 0;
 }
 
@@ -478,6 +495,14 @@ int16_t Network::FetchValidOffset()
 	ReceiveResponseHandler(coordinator_, &response);
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
 	offset_fetch_response->ParseOffset(partition_offset_);
+	error_code = offset_fetch_response->GetErrorCode();
+	if (error_code != ErrorCode::NO_ERROR)
+	{
+		delete offset_fetch_request;
+		delete offset_fetch_response;
+		return error_code;
+	}
+
 	delete offset_fetch_request;
 	delete offset_fetch_response;
 
@@ -489,7 +514,7 @@ int16_t Network::FetchValidOffset()
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
-		Broker *leader = &brokers_[leader_id];
+		Broker *leader = &brokers_.at(leader_id);
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
 		SendRequestHandler(leader, offset_request);
@@ -501,7 +526,7 @@ int16_t Network::FetchValidOffset()
 		delete offset_response;
 
 		int16_t tmp_error = CommitOffset(po_it->first, po_it->second);
-		if (tmp_error != 0)
+		if (tmp_error != ErrorCode::NO_ERROR)
 			error_code = tmp_error;
 	}
 	return error_code;
@@ -573,7 +598,7 @@ int Network::FetchMessage()
 		}
 
 		int leader_id = bp_it->first;
-		Broker *leader = &brokers_[leader_id];
+		Broker *leader = &brokers_.at(leader_id);
 		FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
 		SendRequestHandler(leader, fetch_request);
 		Response *response;
@@ -599,6 +624,8 @@ int Network::FetchMessage()
 		delete fetch_response;
 	}
 #endif
+
+	return 0;
 }
 
 int Network::PartOfGroup(Event &event)

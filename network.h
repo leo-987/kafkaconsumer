@@ -3,6 +3,7 @@
 
 #include <map>
 #include <vector>
+#include <unordered_map>
 
 #include "request.h"
 #include "response.h"
@@ -64,10 +65,10 @@ private:
 	std::string group_;
 
 	// broker id -> Broker 
-	std::map<int, Broker> brokers_;
+	std::unordered_map<int, Broker> brokers_;
 
 	// partition id -> Partition
-	std::map<int, Partition> all_partitions_;
+	std::unordered_map<int, Partition> all_partitions_;
 	std::vector<int> my_partitions_id_;
 	std::map<int, long> partition_offset_;
 

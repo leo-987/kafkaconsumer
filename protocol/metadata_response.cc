@@ -2,82 +2,41 @@
 #include "util.h"
 #include "easylogging++.h"
 
-#if 0
-Broker::Broker(int fd, int node_id, const std::string &host, int port)
-{
-	node_id_ = node_id;
-	host_ = host;
-	port_ = port;
-}
-
-Broker::Broker(char **buf)
-{
-	// node id
-	node_id_ = Util::NetBytesToInt(*buf);
-	(*buf) += 4;
-
-	// host name
-	short host_size = Util::NetBytesToShort(*buf);
-	(*buf) += 2;
-	host_ = std::string(*buf, host_size);
-	(*buf) += host_size;
-
-	// port
-	port_ = Util::NetBytesToInt(*buf);
-	(*buf) += 4;
-}
-
-int Broker::CountSize()
-{
-	return 4 + 2 + host_.length() + 4;
-}
-
-void Broker::PrintAll()
-{
-	std::cout << "node id = " << node_id_ << std::endl;
-	std::cout << "host = " << host_ << std::endl;
-	std::cout << "port = " << port_ << std::endl;
-}
-#endif
-
-PartitionMetadata::PartitionMetadata(short error_code, int partition_id, int leader,
-		const std::vector<int> &replicas, const std::vector<int> &isr)
-{
-	partition_error_code_ = error_code;
-	partition_id_ = partition_id;
-	leader_ = leader;
-	replicas_ = replicas;
-	isr_ = isr;
-}
+//PartitionMetadata::PartitionMetadata(short error_code, int partition_id, int leader,
+//		const std::vector<int> &replicas, const std::vector<int> &isr)
+//{
+//	partition_error_code_ = error_code;
+//	LOG_IF(partition_error_code_ != 0, ERROR) << "error code = " << partition_error_code_;
+//	partition_id_ = partition_id;
+//	leader_ = leader;
+//	replicas_ = replicas;
+//	isr_ = isr;
+//}
 
 PartitionMetadata::PartitionMetadata(char **buf)
 {
-	// partition error code
 	partition_error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(partition_error_code_ != 0, ERROR) << "error code = " << partition_error_code_;
 
-	// partition id
 	partition_id_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	// leader
 	leader_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	// replicas array size
-	int replicas_array_size = Util::NetBytesToInt(*buf);
+	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-	for (int k = 0; k < replicas_array_size; k++)
+	for (int k = 0; k < array_size; k++)
 	{
 		int rep = Util::NetBytesToInt(*buf);
 		(*buf) += 4;
 		replicas_.push_back(rep);
 	}
 
-	// isr array size
-	int isr_array_size = Util::NetBytesToInt(*buf);
+	array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-	for (int k = 0; k < isr_array_size; k++)
+	for (int k = 0; k < array_size; k++)
 	{
 		isr_.push_back(Util::NetBytesToInt(*buf));
 		(*buf) += 4;
@@ -88,13 +47,8 @@ int PartitionMetadata::CountSize()
 {
 	int size = 0;
 	size += 2 + 4 + 4;
-
-	// array
 	size += 4 + 4 * replicas_.size();
-
-	// array
 	size += 4 + 4 * isr_.size();
-
 	return size;
 }
 
@@ -111,27 +65,26 @@ void PartitionMetadata::PrintAll()
 		LOG(DEBUG) << "isr = " << *it;
 }
 
-TopicMetadata::TopicMetadata(short error_code, const std::string &topic_name,
-		const std::vector<PartitionMetadata> &partition_metadata)
-{
-	topic_error_code_ = error_code;
-	topic_ = topic_name;
-	partition_metadata_ = partition_metadata;
-}
+//--------------------------------------------
+//TopicMetadata::TopicMetadata(short error_code, const std::string &topic_name,
+//		const std::vector<PartitionMetadata> &partition_metadata)
+//{
+//	topic_error_code_ = error_code;
+//	topic_ = topic_name;
+//	partition_metadata_ = partition_metadata;
+//}
 
 TopicMetadata::TopicMetadata(char **buf)
 {
-	// topic error code
 	topic_error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
+	LOG_IF(topic_error_code_ != 0, ERROR) << "error code = " << topic_error_code_;
 
-	// topic name
 	short topic_name_size = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
 	topic_ = std::string(*buf, topic_name_size);
 	(*buf) += topic_name_size;
 
-	// partition metadata array
 	int partition_metadata_array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 	for (int j = 0; j < partition_metadata_array_size; j++)
@@ -162,19 +115,18 @@ void TopicMetadata::PrintAll()
 		it->PrintAll();
 }
 
+//-------------------------------------------------
 MetadataResponse::MetadataResponse(char **buf)
 	: Response(ApiKey::MetadataType, buf)
 {
-	// broker array
-	int broker_array_size = Util::NetBytesToInt(*buf);
+	int array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
-	for (int i = 0; i < broker_array_size; i++)
+	for (int i = 0; i < array_size; i++)
 	{
 		Broker broker(buf);
 		brokers_.push_back(broker);
 	}
 
-	// topic metadata array
 	int topic_metadata_array_size = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 	for (int i = 0; i < topic_metadata_array_size; i++)
@@ -229,8 +181,10 @@ int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
 }
 
 // XXX: we should parse all broker data in response
-void MetadataResponse::ParseBrokers(std::map<int, Broker> &brokers)
+std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unordered_map<int, Broker> &brokers)
 {
+	std::unordered_map<int, Broker> updated_brokers;
+
 	// insert new broker
 	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
 	{
@@ -238,40 +192,61 @@ void MetadataResponse::ParseBrokers(std::map<int, Broker> &brokers)
 		int broker_id = GetBrokerIdFromHostname(b.host_);
 		if (broker_id < 0)
 		{
-			LOG(DEBUG) << "error: broker id not found";
+			LOG(ERROR) << "error: broker id not found";
 			continue;
 		}
 
 		b.id_ = broker_id;
-		brokers.insert({broker_id, b});
+		//brokers.insert({broker_id, b});
+		updated_brokers.insert({broker_id, b});
 	}
 
 	// delete tmp broker
-	for (auto b_it = brokers.begin(); b_it != brokers.end(); /* NULL */)
-	{
-		if (b_it->first < 0)
-		{
-			// for c++11
-			//b_it = brokers.erase(b_it);
+	//for (auto b_it = brokers.begin(); b_it != brokers.end(); /* NULL */)
+	//{
+	//	if (b_it->first < 0)
+	//	{
+	//		// for c++11
+	//		//b_it = brokers.erase(b_it);
 
-			auto to_erase = b_it;
-			++b_it;
-			brokers.erase(to_erase);
-		}
-		else
-			++b_it;
-	}
+	//		auto to_erase = b_it;
+	//		++b_it;
+	//		brokers.erase(to_erase);
+	//	}
+	//	else
+	//		++b_it;
+	//}
+
+	return updated_brokers;
 }
 
-void MetadataResponse::ParsePartitions(std::map<int, Partition> &partitions)
+int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &partitions)
 {
 	// XXX: assuming only one topic
-	std::vector<PartitionMetadata> &pm = topic_metadata_[0].partition_metadata_;
+	TopicMetadata &tm = topic_metadata_[0];
+	int16_t topic_error_code = tm.topic_error_code_;
+	if (topic_error_code != 0)
+	{
+		// 1. UnknownTopicOrPartition(3)
+		// 2. InvalidTopic(17)
+		// 3. TopicAuthorizationFailed(29)
+		LOG(ERROR) << "topic error code = " << topic_error_code;
+		return topic_error_code;
+	}
+
+	std::vector<PartitionMetadata> &pm = tm.partition_metadata_;
 	for (auto pm_it = pm.begin(); pm_it != pm.end(); ++pm_it)
 	{
+		// 1. UnknownTopicOrPartition(3)
+		// 2. LeaderNotAvailable(5)
+		if (pm_it->partition_error_code_ != 0)
+			continue;
+
 		Partition partition(pm_it->partition_id_, pm_it->leader_);
-		partitions.insert({partition.GetPartitionId(), partition});
+		//partitions.insert({partition.GetPartitionId(), partition});
+		partitions[partition.GetPartitionId()] = partition;
 	}
+	return 0;
 }
 
 

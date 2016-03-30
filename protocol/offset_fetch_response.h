@@ -6,17 +6,21 @@
 #include "response.h"
 #include "util.h"
 
-class PartitionOffsetInfo {
+class PartitionOffsetME {
 public:
-	PartitionOffsetInfo(char **buf);
+	PartitionOffsetME(char **buf);
 
 	int CountSize();
 	void PrintAll();
+	int16_t GetErrorCode();
+	int32_t GetPartition();
+	int64_t GetOffset();
 
-	int partition_;
-	long offset_;
+private:
+	int32_t partition_;
+	int64_t offset_;
 	std::string metadata_;
-	short error_code_;
+	int16_t error_code_;
 };
 
 // format: [TopicName [Partition Offset Metadata ErrorCode]]
@@ -28,11 +32,12 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 	int ParseOffset(std::map<int, long> &partition_offset);
+	int16_t GetErrorCode();
 	
 private:
 	// XXX: format
 	std::string topic_;
-	std::vector<PartitionOffsetInfo> partitions_info_;
+	std::vector<PartitionOffsetME> partitions_info_;
 };
 
 #endif
