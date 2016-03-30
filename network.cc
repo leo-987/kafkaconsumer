@@ -49,7 +49,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
-		Broker broker(fd, tmp_broker_id, host, port);
+		Broker broker(fd, tmp_broker_id, ip, port);
 		brokers_.insert({tmp_broker_id, broker});
 		tmp_broker_id--;
 	}
@@ -322,6 +322,8 @@ int Network::Initial(Event &event)
 		brokers_ = updated_brokers;
 		meta_response->ParsePartitions(all_partitions_);
 
+		// TODO: we should handler new broker
+
 		// next state
 		current_state_ = &Network::DiscoverCoordinator;
 		event = Event::DISCOVER_COORDINATOR;
@@ -329,6 +331,7 @@ int Network::Initial(Event &event)
 	else
 	{
 		// Sleep and retry metadata request in next loop
+		// NOTE: we can't clear brokers_
 		sleep(5);
 	}
 

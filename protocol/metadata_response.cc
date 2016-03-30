@@ -170,52 +170,38 @@ void MetadataResponse::PrintAll()
 	LOG(DEBUG) << "--------------------------";
 }
 
-int MetadataResponse::GetBrokerIdFromHostname(const std::string &hostname)
+int MetadataResponse::GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &origin_brokers)
 {
-	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
+	for (auto b_it = origin_brokers.begin(); b_it != origin_brokers.end(); ++b_it)
 	{
-		if (b_it->host_ == hostname)
-			return b_it->id_;
+		const Broker &b = b_it->second;
+		if (b.ip_ == alive_ip)
+			return b.fd_;
 	}
 	return -1;
 }
 
 // XXX: we should parse all broker data in response
-std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unordered_map<int, Broker> &brokers)
+std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unordered_map<int, Broker> &origin_brokers)
 {
 	std::unordered_map<int, Broker> updated_brokers;
 
-	// insert new broker
-	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
+	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 	{
-		Broker b = b_it->second;
-		int broker_id = GetBrokerIdFromHostname(b.host_);
-		if (broker_id < 0)
+		std::string alive_ip = Util::HostnameToIp(b_it->ip_);
+		int fd = GetFdFromIp(alive_ip, origin_brokers);
+		if (fd > 0)
 		{
-			LOG(ERROR) << "error: broker id not found";
+			Broker alive_broker(fd, b_it->id_, b_it->ip_, b_it->port_);
+			updated_brokers.insert({b_it->id_, alive_broker});
+		}
+		else
+		{
+			// new broker
+			LOG(INFO) << "New broker was found...";
 			continue;
 		}
-
-		b.id_ = broker_id;
-		//brokers.insert({broker_id, b});
-		updated_brokers.insert({broker_id, b});
 	}
-
-	// delete tmp broker
-	//for (auto b_it = brokers.begin(); b_it != brokers.end(); /* NULL */)
-	//{
-	//	if (b_it->first < 0)
-	//	{
-	//		// for c++11
-	//		//b_it = brokers.erase(b_it);
-
-	//		auto to_erase = b_it;
-	//		++b_it;
-	//		brokers.erase(to_erase);
-	//	}
-	//	else
-	//		++b_it;
-	//}
 
 	return updated_brokers;
 }

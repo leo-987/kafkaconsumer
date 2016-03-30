@@ -53,8 +53,8 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 
-	int GetBrokerIdFromHostname(const std::string &hostname);
-	std::unordered_map<int, Broker> ParseBrokers(const std::unordered_map<int, Broker> &brokers);
+	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &origin_brokers);
+	std::unordered_map<int, Broker> ParseBrokers(const std::unordered_map<int, Broker> &origin_brokers);
 	int16_t ParsePartitions(std::unordered_map<int, Partition> &partitions);
 
 private:

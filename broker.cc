@@ -6,11 +6,11 @@ Broker::Broker()
 {
 }
 
-Broker::Broker(int fd, int id, const std::string &host, int port)
+Broker::Broker(int fd, int id, const std::string &ip, int port)
 {
 	fd_ = fd;
 	id_ = id;
-	host_ = host;
+	ip_ = ip;
 	port_ = port;
 }
 
@@ -20,11 +20,11 @@ Broker::Broker(char **buf)
 	id_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	// host name
-	short host_size = Util::NetBytesToShort(*buf);
+	// ip/host name
+	short ip_len = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	host_ = std::string(*buf, host_size);
-	(*buf) += host_size;
+	ip_ = std::string(*buf, ip_len);
+	(*buf) += ip_len;
 
 	// port
 	port_ = Util::NetBytesToInt(*buf);
@@ -33,13 +33,13 @@ Broker::Broker(char **buf)
 
 int Broker::CountSize()
 {
-	return 4 + 2 + host_.length() + 4;
+	return 4 + 2 + ip_.length() + 4;
 }
 
 void Broker::PrintAll()
 {
 	LOG(DEBUG) << "fd = " << fd_;
 	LOG(DEBUG) << "id = " << id_;
-	LOG(DEBUG) << "host = " << host_;
+	LOG(DEBUG) << "ip = " << ip_;
 	LOG(DEBUG) << "port = " << port_;
 }

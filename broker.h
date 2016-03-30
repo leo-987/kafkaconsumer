@@ -6,7 +6,7 @@
 class Broker {
 public:
 	Broker();
-	Broker(int fd, int id, const std::string &host, int port);
+	Broker(int fd, int id, const std::string &ip, int port);
 	Broker(char **buf);
 
 	int CountSize();
@@ -14,7 +14,7 @@ public:
 
 	int fd_;
 	int id_;
-	std::string host_;
+	std::string ip_;
 	int port_;
 };
 
