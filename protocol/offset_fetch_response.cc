@@ -1,4 +1,4 @@
-#include <map>
+#include <unordered_map>
 #include "offset_fetch_response.h"
 #include "easylogging++.h"
 
@@ -103,7 +103,7 @@ void OffsetFetchResponse::PrintAll()
 	LOG(DEBUG) << "-----------------------------";
 }
 
-int OffsetFetchResponse::ParseOffset(std::map<int, long> &partition_offset)
+int OffsetFetchResponse::ParseOffset(std::unordered_map<int, long> &partition_offset)
 {
 	for (auto po_it = partitions_info_.begin(); po_it != partitions_info_.end(); ++po_it)
 	{

@@ -1,7 +1,6 @@
 #ifndef _NETWORK_H_
 #define _NETWORK_H_
 
-#include <map>
 #include <vector>
 #include <unordered_map>
 
@@ -36,11 +35,12 @@ public:
 	short GetApiKeyFromResponse(int correlation_id);
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf, int total_len); 
-	std::map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
+	std::unordered_map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
 	int16_t FetchValidOffset();
 	int FetchMessage();
 	int16_t CommitOffset(int32_t partition, int64_t offset);
 	int16_t CommitOffset(const std::vector<PartitionOM> &partitions);
+	void ConnectNewBroker(std::unordered_map<int, Broker> &brokers);
 
 
 	typedef int (Network::*StateProc)(Event &event);
@@ -64,16 +64,18 @@ private:
 	std::string topic_;
 	std::string group_;
 
+	std::vector<Broker> seed_brokers_;
+
 	// broker id -> Broker 
 	std::unordered_map<int, Broker> brokers_;
 
 	// partition id -> Partition
 	std::unordered_map<int, Partition> all_partitions_;
 	std::vector<int> my_partitions_id_;
-	std::map<int, long> partition_offset_;
+	std::unordered_map<int, long> partition_offset_;
 
 	// leader id -> owned partitions id
-	std::map<int, std::vector<int>> broker_owned_partition_;
+	std::unordered_map<int, std::vector<int>> broker_owned_partition_;
 
 	Broker *coordinator_;
 
@@ -82,7 +84,9 @@ private:
 
 	bool amIGroupLeader_;
 	std::vector<std::string> members_;
-	std::map<std::string, std::vector<int>> member_partition_map_;
+
+	// member id -> owned partitions id
+	std::unordered_map<std::string, std::vector<int>> member_partitions_;
 };
 
 #endif

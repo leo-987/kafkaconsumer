@@ -49,7 +49,10 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		std::string ip = Util::HostnameToIp(host);
 		int port = std::stoi(host_port[1]);
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
+		if (fd < 0)
+			continue;
 		Broker broker(fd, tmp_broker_id, ip, port);
+		seed_brokers_.push_back(broker);
 		brokers_.insert({tmp_broker_id, broker});
 		tmp_broker_id--;
 	}
@@ -92,20 +95,20 @@ int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 {
 	int ret = Receive(broker->fd_, response);
 	if (ret == 0)
-	{
 		(*response)->PrintAll();
-	}
-
-	return 0;
+	return ret;
 }
 
 int Network::SendRequestHandler(Broker *broker, Request *request)
 {
 	request->PrintAll();
-	Send(broker->fd_, request);
-	last_correlation_id_ = request->GetCorrelationId();
-	last_api_key_ = request->GetApiKey();
-	return 0;
+	int ret = Send(broker->fd_, request);
+	if (ret == 0)
+	{
+		last_correlation_id_ = request->GetCorrelationId();
+		last_api_key_ = request->GetApiKey();
+	}
+	return ret;
 }
 
 int Network::Receive(int fd, Response **res)
@@ -217,7 +220,6 @@ int Network::Send(int fd, Request *request)
 			return -1;
 		}
 	}
-
 	return 0;
 }
 
@@ -256,7 +258,7 @@ int Network::PartitionAssignment()
 			owned.push_back(pm_it->second.GetPartitionId());
 			++pm_it;
 		}
-		member_partition_map_.insert({*m_it, owned});
+		member_partitions_.insert({*m_it, owned});
 	}
 	return 0;
 }
@@ -295,6 +297,23 @@ int Network::CompleteRead(int fd, char *buf, int total_len)
 	return 0;
 }
 
+// Connect new broker if we found it
+void Network::ConnectNewBroker(std::unordered_map<int, Broker> &brokers)
+{
+	for (auto b_it = brokers.begin(); b_it != brokers.end(); ++b_it)
+	{
+		Broker &broker = b_it->second;
+		if (broker.fd_ > 0)
+			continue;
+
+		std::string ip = broker.ip_;
+		int port = broker.port_;
+		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
+		if (fd < 0)
+			continue;
+		broker.fd_ = fd;
+	}
+}
 
 //---------------------------state functions
 int Network::Initial(Event &event)
@@ -306,23 +325,34 @@ int Network::Initial(Event &event)
 	}
 
 	std::vector<std::string> topics({topic_});
-	MetadataRequest *metadata_request = new MetadataRequest(topics);
+	MetadataRequest *meta_request = new MetadataRequest(topics);
+	MetadataResponse *meta_response;
+	
+	// Fetch metadata 
+	for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
+	{
+		int ret;
+		Broker *broker = &(*b_it);
+		ret = SendRequestHandler(broker, meta_request);
+		if (ret != 0)
+			continue;
 
-	// Select the first broker
-	auto b_it = brokers_.begin();
-	Broker *broker = &(b_it->second);
-	SendRequestHandler(broker, metadata_request);
-	Response *response;
-	ReceiveResponseHandler(broker, &response);
-	MetadataResponse *meta_response = dynamic_cast<MetadataResponse*>(response);
+		Response *response;
+		ret = ReceiveResponseHandler(broker, &response);
+		if (ret != 0)
+			continue;
+
+		meta_response = dynamic_cast<MetadataResponse*>(response);
+		break;
+	}
 
 	std::unordered_map<int, Broker> updated_brokers = meta_response->ParseBrokers(brokers_);
 	if (!updated_brokers.empty())
 	{
 		brokers_ = updated_brokers;
-		meta_response->ParsePartitions(all_partitions_);
+		ConnectNewBroker(brokers_);
 
-		// TODO: we should handler new broker
+		int16_t error_code = meta_response->ParsePartitions(all_partitions_);
 
 		// next state
 		current_state_ = &Network::DiscoverCoordinator;
@@ -330,13 +360,12 @@ int Network::Initial(Event &event)
 	}
 	else
 	{
-		// Sleep and retry metadata request in next loop
-		// NOTE: we can't clear brokers_
+		// No valid broker, sleep and retry metadata request in next loop
 		sleep(5);
 	}
 
-	delete metadata_request;
-	delete response;
+	delete meta_request;
+	delete meta_response;
 
 	return 0;
 }
@@ -429,9 +458,9 @@ int Network::JoinGroup(Event &event)
 }
 
 // Create mapping: leader id -> [partitions]
-std::map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions)
+std::unordered_map<int, std::vector<int>> Network::CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions)
 {
-	std::map<int, std::vector<int>> result;
+	std::unordered_map<int, std::vector<int>> result;
 	for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 	{
 		int partition_id = *p_it;
@@ -445,7 +474,7 @@ int Network::SyncGroup(Event &event)
 {
 	SyncGroupRequest *sync_request;
 	if (amIGroupLeader_ == true)
-		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_, member_partition_map_);
+		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_, member_partitions_);
 	else
 		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_);
 
@@ -567,7 +596,7 @@ int Network::FetchMessage()
 	for (auto p_it = all_partitions_.begin(); p_it != all_partitions_.end(); ++p_it)
 	{
 		int partition = p_it->first;
-		int64_t offset = partition_offset_[partition];
+		int64_t offset = partition_offset_.at(partition);
 		Broker *leader = &brokers_.at(p_it->second.GetLeaderId());
 
 		FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
@@ -596,7 +625,7 @@ int Network::FetchMessage()
 		for (auto p_it = owned_partitions.begin(); p_it != owned_partitions.end(); ++p_it)
 		{
 			int partition = *p_it;
-			int64_t offset = partition_offset_[partition];
+			int64_t offset = partition_offset_.at(partition);
 			fetch_partitions.push_back({partition, offset});
 		}
 

@@ -1,6 +1,7 @@
 #include "metadata_response.h"
 #include "util.h"
 #include "easylogging++.h"
+#include "error_code.h"
 
 //PartitionMetadata::PartitionMetadata(short error_code, int partition_id, int leader,
 //		const std::vector<int> &replicas, const std::vector<int> &isr)
@@ -197,8 +198,11 @@ std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unorde
 		}
 		else
 		{
+			Broker new_broker(-1 /* fd */, b_it->id_, b_it->ip_, b_it->port_);
+			updated_brokers.insert({b_it->id_, new_broker});
+
 			// new broker
-			LOG(INFO) << "New broker was found...";
+			LOG(INFO) << "New broker was found, broker id = " << b_it->id_;
 			continue;
 		}
 	}
@@ -208,10 +212,12 @@ std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unorde
 
 int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &partitions)
 {
+	partitions.clear();
+
 	// XXX: assuming only one topic
 	TopicMetadata &tm = topic_metadata_[0];
 	int16_t topic_error_code = tm.topic_error_code_;
-	if (topic_error_code != 0)
+	if (topic_error_code != ErrorCode::NO_ERROR)
 	{
 		// 1. UnknownTopicOrPartition(3)
 		// 2. InvalidTopic(17)
@@ -225,14 +231,17 @@ int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &pa
 	{
 		// 1. UnknownTopicOrPartition(3)
 		// 2. LeaderNotAvailable(5)
-		if (pm_it->partition_error_code_ != 0)
+		if (pm_it->partition_error_code_ != ErrorCode::NO_ERROR)
+		{
+			LOG(ERROR) << "partition error code = " << pm_it->partition_error_code_;
 			continue;
+		}
 
 		Partition partition(pm_it->partition_id_, pm_it->leader_);
 		//partitions.insert({partition.GetPartitionId(), partition});
 		partitions[partition.GetPartitionId()] = partition;
 	}
-	return 0;
+	return ErrorCode::NO_ERROR;
 }
 
 

@@ -43,7 +43,7 @@ void GroupAssignment::Package(char **buf)
 //----------------------------------------
 SyncGroupRequest::SyncGroupRequest(const std::string &topic, const std::string &group_id,
 		int generation_id, const std::string &member_id,
-		const std::map<std::string, std::vector<int>> &member_partition_map, int correlation_id)
+		const std::unordered_map<std::string, std::vector<int>> &member_partition_map, int correlation_id)
 	: Request(ApiKey::SyncGroupType, correlation_id)
 {
 	group_id_ = group_id;

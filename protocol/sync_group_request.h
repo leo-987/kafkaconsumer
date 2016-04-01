@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
 
 #include "request.h"
 #include "member_assignment.h"
@@ -26,7 +26,7 @@ class SyncGroupRequest: public Request {
 public:
 	SyncGroupRequest(const std::string &topic, const std::string &group_id,
 			int generation_id, const std::string &member_id,
-			const std::map<std::string, std::vector<int>> &member_partition_map, int correlation_id = ApiKey::SyncGroupType);
+			const std::unordered_map<std::string, std::vector<int>> &member_partition_map, int correlation_id = ApiKey::SyncGroupType);
 
 	SyncGroupRequest(const std::string &topic, const std::string &group_id,
 			int generation_id, const std::string &member_id, int correlation_id = ApiKey::SyncGroupType);

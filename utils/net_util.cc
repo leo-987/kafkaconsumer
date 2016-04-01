@@ -11,6 +11,7 @@
 #include <string>
 
 #include "net_util.h"
+#include "easylogging++.h"
 
 namespace NetUtil {
 
@@ -66,11 +67,29 @@ int NewTcpServer(int port)
 
 int NewTcpClient(const char* ip, int port)
 {
-	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	//SetNonBlock(fd);
-	sockaddr_in addr;
-	SetAddress(ip, port, &addr);
-	connect(fd, (struct sockaddr*)(&addr), sizeof(addr));
+	int fd = -1;
+	const int MAX_RETRY = 10;
+
+	for (int cnt = 0; fd < 0 && cnt < MAX_RETRY; cnt++)
+	{
+		fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (fd < 0)
+		{
+			LOG(ERROR) << "socket failed, error number = " << errno;
+			continue;
+		}
+		//SetNonBlock(fd);
+		sockaddr_in addr;
+		SetAddress(ip, port, &addr);
+		int ret = connect(fd, (struct sockaddr*)(&addr), sizeof(addr));
+		if (ret < 0)
+		{
+			// If connect failed, we should close fd
+			close(fd);
+			LOG(ERROR) << "connect failed, error number = " << errno;
+			continue;
+		}
+	}
 	return fd;
 }
 

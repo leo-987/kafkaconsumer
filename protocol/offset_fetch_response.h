@@ -31,7 +31,7 @@ public:
 
 	virtual int CountSize();
 	virtual void PrintAll();
-	int ParseOffset(std::map<int, long> &partition_offset);
+	int ParseOffset(std::unordered_map<int, long> &partition_offset);
 	int16_t GetErrorCode();
 	
 private:
