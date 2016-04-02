@@ -183,6 +183,7 @@ int MetadataResponse::GetFdFromIp(const std::string &alive_ip, const std::unorde
 }
 
 // XXX: we should parse all broker data in response
+// TODO
 std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unordered_map<int, Broker> &origin_brokers)
 {
 	std::unordered_map<int, Broker> updated_brokers;
@@ -198,10 +199,9 @@ std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unorde
 		}
 		else
 		{
+			// new broker
 			Broker new_broker(-1 /* fd */, b_it->id_, b_it->ip_, b_it->port_);
 			updated_brokers.insert({b_it->id_, new_broker});
-
-			// new broker
 			LOG(INFO) << "New broker was found, broker id = " << b_it->id_;
 			continue;
 		}
@@ -238,7 +238,6 @@ int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &pa
 		}
 
 		Partition partition(pm_it->partition_id_, pm_it->leader_);
-		//partitions.insert({partition.GetPartitionId(), partition});
 		partitions[partition.GetPartitionId()] = partition;
 	}
 	return ErrorCode::NO_ERROR;

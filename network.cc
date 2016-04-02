@@ -318,54 +318,58 @@ void Network::ConnectNewBroker(std::unordered_map<int, Broker> &brokers)
 //---------------------------state functions
 int Network::Initial(Event &event)
 {
-	if (event != Event::STARTUP)
+	switch(event)
 	{
-		std::cout << __LINE__ << std::endl;
-		return -1;
+		case Event::STARTUP:
+		{
+			std::vector<std::string> topics({topic_});
+			MetadataRequest *meta_request = new MetadataRequest(topics);
+			MetadataResponse *meta_response;
+
+			// Fetch metadata from seed node
+			for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
+			{
+				int ret;
+				Broker *broker = &(*b_it);
+				ret = SendRequestHandler(broker, meta_request);
+				if (ret != 0)
+					continue;
+
+				Response *response;
+				ret = ReceiveResponseHandler(broker, &response);
+				if (ret != 0)
+					continue;
+
+				meta_response = dynamic_cast<MetadataResponse*>(response);
+				break;
+			}
+
+			std::unordered_map<int, Broker> updated_brokers = meta_response->ParseBrokers(brokers_);
+			if (!updated_brokers.empty())
+			{
+				brokers_ = updated_brokers;
+				ConnectNewBroker(brokers_);
+
+				int16_t error_code = meta_response->ParsePartitions(all_partitions_);
+				if (error_code == ErrorCode::NO_ERROR)
+				{
+					// next state
+					current_state_ = &Network::DiscoverCoordinator;
+					event = Event::DISCOVER_COORDINATOR;
+				}
+			}
+			else
+			{
+				// No valid broker, sleep and retry metadata request in next loop
+				sleep(5);
+			}
+
+			delete meta_request;
+			delete meta_response;
+
+			break;
+		}
 	}
-
-	std::vector<std::string> topics({topic_});
-	MetadataRequest *meta_request = new MetadataRequest(topics);
-	MetadataResponse *meta_response;
-	
-	// Fetch metadata 
-	for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
-	{
-		int ret;
-		Broker *broker = &(*b_it);
-		ret = SendRequestHandler(broker, meta_request);
-		if (ret != 0)
-			continue;
-
-		Response *response;
-		ret = ReceiveResponseHandler(broker, &response);
-		if (ret != 0)
-			continue;
-
-		meta_response = dynamic_cast<MetadataResponse*>(response);
-		break;
-	}
-
-	std::unordered_map<int, Broker> updated_brokers = meta_response->ParseBrokers(brokers_);
-	if (!updated_brokers.empty())
-	{
-		brokers_ = updated_brokers;
-		ConnectNewBroker(brokers_);
-
-		int16_t error_code = meta_response->ParsePartitions(all_partitions_);
-
-		// next state
-		current_state_ = &Network::DiscoverCoordinator;
-		event = Event::DISCOVER_COORDINATOR;
-	}
-	else
-	{
-		// No valid broker, sleep and retry metadata request in next loop
-		sleep(5);
-	}
-
-	delete meta_request;
-	delete meta_response;
 
 	return 0;
 }
