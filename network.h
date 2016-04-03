@@ -41,7 +41,9 @@ public:
 	int16_t CommitOffset(int32_t partition, int64_t offset);
 	int16_t CommitOffset(const std::vector<PartitionOM> &partitions);
 	void ConnectNewBroker(std::unordered_map<int, Broker> &brokers);
-
+	void DisconnectDownBroker(std::unordered_map<int, Broker> &old_brokers, std::unordered_map<int, Broker> &new_brokers);
+	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &alive_brokers);
+	void RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers, std::unordered_map<int, Broker> &updated_brokers);
 
 	typedef int (Network::*StateProc)(Event &event);
 	StateProc current_state_;
@@ -67,7 +69,7 @@ private:
 	std::vector<Broker> seed_brokers_;
 
 	// broker id -> Broker 
-	std::unordered_map<int, Broker> brokers_;
+	std::unordered_map<int, Broker> alive_brokers_;
 
 	// partition id -> Partition
 	std::unordered_map<int, Partition> all_partitions_;

@@ -53,13 +53,13 @@ public:
 	virtual int CountSize();
 	virtual void PrintAll();
 
-	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &origin_brokers);
-	std::unordered_map<int, Broker> ParseBrokers(const std::unordered_map<int, Broker> &origin_brokers);
+	void ParseBrokers(std::unordered_map<int, Broker> &updated_brokers);
 	int16_t ParsePartitions(std::unordered_map<int, Partition> &partitions);
 
 private:
 	std::vector<Broker> brokers_;				// array
 	std::vector<TopicMetadata> topic_metadata_;	// array
+	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &origin_brokers);
 };
 
 #endif

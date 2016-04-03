@@ -18,7 +18,7 @@ PartitionMetadata::PartitionMetadata(char **buf)
 {
 	partition_error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	LOG_IF(partition_error_code_ != 0, ERROR) << "error code = " << partition_error_code_;
+	LOG_IF(partition_error_code_ != 0, ERROR) << "partition error code = " << partition_error_code_;
 
 	partition_id_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
@@ -183,31 +183,26 @@ int MetadataResponse::GetFdFromIp(const std::string &alive_ip, const std::unorde
 }
 
 // XXX: we should parse all broker data in response
-// TODO
-std::unordered_map<int, Broker> MetadataResponse::ParseBrokers(const std::unordered_map<int, Broker> &origin_brokers)
+void MetadataResponse::ParseBrokers(std::unordered_map<int, Broker> &updated_brokers)
 {
-	std::unordered_map<int, Broker> updated_brokers;
-
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 	{
-		std::string alive_ip = Util::HostnameToIp(b_it->ip_);
-		int fd = GetFdFromIp(alive_ip, origin_brokers);
-		if (fd > 0)
-		{
-			Broker alive_broker(fd, b_it->id_, b_it->ip_, b_it->port_);
+		//std::string alive_ip = Util::HostnameToIp(b_it->ip_);
+		//int fd = GetFdFromIp(alive_ip, origin_brokers);
+		//if (fd > 0)
+		//{
+			Broker alive_broker(-1, b_it->id_, b_it->ip_, b_it->port_);
 			updated_brokers.insert({b_it->id_, alive_broker});
-		}
-		else
-		{
-			// new broker
-			Broker new_broker(-1 /* fd */, b_it->id_, b_it->ip_, b_it->port_);
-			updated_brokers.insert({b_it->id_, new_broker});
-			LOG(INFO) << "New broker was found, broker id = " << b_it->id_;
-			continue;
-		}
+		//}
+		//else
+		//{
+		//	// new broker
+		//	Broker new_broker(-1 /* fd */, b_it->id_, b_it->ip_, b_it->port_);
+		//	updated_brokers.insert({b_it->id_, new_broker});
+		//	LOG(INFO) << "New broker was found, broker id = " << b_it->id_;
+		//	continue;
+		//}
 	}
-
-	return updated_brokers;
 }
 
 int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &partitions)
@@ -222,18 +217,16 @@ int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &pa
 		// 1. UnknownTopicOrPartition(3)
 		// 2. InvalidTopic(17)
 		// 3. TopicAuthorizationFailed(29)
-		LOG(ERROR) << "topic error code = " << topic_error_code;
 		return topic_error_code;
 	}
 
 	std::vector<PartitionMetadata> &pm = tm.partition_metadata_;
 	for (auto pm_it = pm.begin(); pm_it != pm.end(); ++pm_it)
 	{
-		// 1. UnknownTopicOrPartition(3)
-		// 2. LeaderNotAvailable(5)
 		if (pm_it->partition_error_code_ != ErrorCode::NO_ERROR)
 		{
-			LOG(ERROR) << "partition error code = " << pm_it->partition_error_code_;
+			// 1. UnknownTopicOrPartition(3)
+			// 2. LeaderNotAvailable(5)
 			continue;
 		}
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <deque>
+#include <string.h>
 
 #include "kafka_client.h"
 #include "network.h"
@@ -27,9 +28,6 @@
 #include "offset_commit_response.h"
 #include "error_code.h"
 
-#include "easylogging++.h"
-
-_INITIALIZE_EASYLOGGINGPP
 
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
 {
@@ -53,7 +51,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 			continue;
 		Broker broker(fd, tmp_broker_id, ip, port);
 		seed_brokers_.push_back(broker);
-		brokers_.insert({tmp_broker_id, broker});
+		alive_brokers_.insert({tmp_broker_id, broker});
 		tmp_broker_id--;
 	}
 
@@ -62,14 +60,12 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 	event_ = Event::STARTUP;
 	current_state_ = &Network::Initial;
 
-	easyloggingpp::Configurations conf_from_file("easylogging.conf");
-	easyloggingpp::Loggers::reconfigureAllLoggers(conf_from_file);
 }
 
 Network::~Network()
 {
 	// close socket and delete brokers
-	for (auto it = brokers_.begin(); it != brokers_.end(); ++it)
+	for (auto it = alive_brokers_.begin(); it != alive_brokers_.end(); ++it)
 	{
 		close(it->second.fd_);
 		//delete it->second;
@@ -227,7 +223,7 @@ short Network::GetApiKeyFromResponse(int correlation_id)
 {
 	if (last_correlation_id_ != correlation_id)
 	{
-		std::cout << "The correlation_id are not equal" << std::endl;
+		std::cerr << "The correlation_id are not equal" << std::endl;
 		return -1;
 	}
 
@@ -281,9 +277,9 @@ int Network::CompleteRead(int fd, char *buf, int total_len)
 		if (nread <= 0)
 		{
 			if (nread == 0)
-				std::cout << "connection has been closed" << std::endl;
+				std::cerr << "connection has been closed" << std::endl;
 			else
-				std::cout << "error occurred" << std::endl;
+				std::cerr << "error occurred" << std::endl;
 
 			close(fd);
 			return -1;
@@ -311,8 +307,46 @@ void Network::ConnectNewBroker(std::unordered_map<int, Broker> &brokers)
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
 		if (fd < 0)
 			continue;
+
 		broker.fd_ = fd;
 	}
+}
+
+// In old, but not in new, desconnect
+void Network::DisconnectDownBroker(std::unordered_map<int, Broker> &old_brokers, std::unordered_map<int, Broker> &new_brokers)
+{
+	for (auto b_it = old_brokers.begin(); b_it != old_brokers.end(); ++b_it)
+	{
+		int old_bid = b_it->first;
+		if (old_bid < 0 || new_brokers.find(old_bid) != new_brokers.end())
+			continue;
+		close(b_it->second.fd_);
+	}
+}
+
+int Network::GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &alive_brokers)
+{
+	for (auto b_it = alive_brokers.begin(); b_it != alive_brokers.end(); ++b_it)
+	{
+		const Broker &b = b_it->second;
+		if (b.ip_ == alive_ip)
+			return b.fd_;
+	}
+	return -1;
+}
+
+void Network::RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers, std::unordered_map<int, Broker> &updated_brokers)
+{
+	for (auto b_it = updated_brokers.begin(); b_it != updated_brokers.end(); ++b_it)
+	{
+		b_it->second.ip_ = Util::HostnameToIp(b_it->second.ip_);
+		int fd = GetFdFromIp(b_it->second.ip_, alive_brokers);
+		if (fd > 0)
+			b_it->second.fd_ = fd;
+	}
+	ConnectNewBroker(updated_brokers);
+	DisconnectDownBroker(alive_brokers, updated_brokers);
+	alive_brokers = updated_brokers;
 }
 
 //---------------------------state functions
@@ -344,11 +378,12 @@ int Network::Initial(Event &event)
 				break;
 			}
 
-			std::unordered_map<int, Broker> updated_brokers = meta_response->ParseBrokers(brokers_);
+			std::unordered_map<int, Broker> updated_brokers;
+		    meta_response->ParseBrokers(updated_brokers);
+
 			if (!updated_brokers.empty())
 			{
-				brokers_ = updated_brokers;
-				ConnectNewBroker(brokers_);
+				RefreshAliveBrokers(alive_brokers_, updated_brokers);
 
 				int16_t error_code = meta_response->ParsePartitions(all_partitions_);
 				if (error_code == ErrorCode::NO_ERROR)
@@ -377,7 +412,7 @@ int Network::Initial(Event &event)
 int Network::DiscoverCoordinator(Event &event)
 {
 	// Select the first broker
-	auto b_it = brokers_.begin();
+	auto b_it = alive_brokers_.begin();
 	Broker *broker = &(b_it->second);
 
 	Response *response;
@@ -387,7 +422,7 @@ int Network::DiscoverCoordinator(Event &event)
 	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
 
 	int32_t co_id = group_response->GetCoordinatorId();
-	coordinator_ = &brokers_.at(co_id);
+	coordinator_ = &alive_brokers_.at(co_id);
 
 	delete group_request;
 	delete response;
@@ -550,7 +585,7 @@ int16_t Network::FetchValidOffset()
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
-		Broker *leader = &brokers_.at(leader_id);
+		Broker *leader = &alive_brokers_.at(leader_id);
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
 		SendRequestHandler(leader, offset_request);
@@ -601,7 +636,7 @@ int Network::FetchMessage()
 	{
 		int partition = p_it->first;
 		int64_t offset = partition_offset_.at(partition);
-		Broker *leader = &brokers_.at(p_it->second.GetLeaderId());
+		Broker *leader = &alive_brokers_.at(p_it->second.GetLeaderId());
 
 		FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
 		SendRequestHandler(leader, fetch_request);
@@ -634,7 +669,7 @@ int Network::FetchMessage()
 		}
 
 		int leader_id = bp_it->first;
-		Broker *leader = &brokers_.at(leader_id);
+		Broker *leader = &alive_brokers_.at(leader_id);
 		FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
 		SendRequestHandler(leader, fetch_request);
 		Response *response;
@@ -691,6 +726,10 @@ int Network::PartOfGroup(Event &event)
 				break;
 			}
 			break;
+
+			// next state
+			//current_state_ = &Network::Initial;
+			//event = Event::STARTUP;
 		}
 	}
 	return 0;

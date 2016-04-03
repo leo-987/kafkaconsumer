@@ -3,6 +3,10 @@
 
 #include "kafka_client.h"
 
+#include "easylogging++.h"
+
+_INITIALIZE_EASYLOGGINGPP
+
 bool KafkaClient::run_;
 
 void KafkaClient::SignalHandler(int signal)
@@ -13,6 +17,9 @@ void KafkaClient::SignalHandler(int signal)
 
 KafkaClient::KafkaClient(const std::string &brokers, const std::string &topic, const std::string &group)
 {
+	easyloggingpp::Configurations conf_from_file("easylogging.conf");
+	easyloggingpp::Loggers::reconfigureAllLoggers(conf_from_file);
+
 	srand(time(NULL));
 	network_ = new Network(this, brokers, topic, group);
 	//signal(SIGINT, KafkaClient::SignalHandler);
