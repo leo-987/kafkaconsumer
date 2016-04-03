@@ -27,6 +27,7 @@
 #include "offset_commit_request.h"
 #include "offset_commit_response.h"
 #include "error_code.h"
+#include "easylogging++.h"
 
 
 Network::Network(KafkaClient *client, const std::string &broker_list, const std::string &topic, const std::string &group)
@@ -87,19 +88,25 @@ int Network::Stop()
 	return 0;
 }
 
+// return value:
+// >0: OK, remember delete response
+// <0: ERROR
 int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 {
 	int ret = Receive(broker->fd_, response);
-	if (ret == 0)
+	if (ret > 0)
 		(*response)->PrintAll();
 	return ret;
 }
 
+// return value:
+// >0 : OK
+// <0 : ERROR
 int Network::SendRequestHandler(Broker *broker, Request *request)
 {
-	request->PrintAll();
+	//request->PrintAll();
 	int ret = Send(broker->fd_, request);
-	if (ret == 0)
+	if (ret > 0)
 	{
 		last_correlation_id_ = request->GetCorrelationId();
 		last_api_key_ = request->GetApiKey();
@@ -107,20 +114,24 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 	return ret;
 }
 
+// return value:
+// >0: OK, remember delete res
+// <0: ERROR
 int Network::Receive(int fd, Response **res)
 {
-	//char buf[1048999] = {0};
 	char size_buf[4];
 	read(fd, size_buf, 4);
 	int total_len = Util::NetBytesToInt(size_buf);
-	//std::cout << "total len = " << total_len << std::endl;
+	LOG(DEBUG) << "Response header total len = " << total_len;
 
 	char *buf = new char[total_len + 4];
 	memcpy(buf, size_buf, 4);
 
-	int ret = CompleteRead(fd ,buf + 4, total_len);
-	if (ret < 0)
+	if (CompleteRead(fd ,buf + 4, total_len) <= 0)
+	{
+		delete[] buf;
 		return -1;
+	}
 
 	//int response_size = Util::NetBytesToInt(buf);
 	int correlation_id = Util::NetBytesToInt(buf + 4);
@@ -128,6 +139,7 @@ int Network::Receive(int fd, Response **res)
 	if (api_key < 0)
 	{
 		// not match
+		delete[] buf;
 		return -1;
 	}
 
@@ -191,9 +203,12 @@ int Network::Receive(int fd, Response **res)
 	}
 
 	delete[] buf;
-	return 0;
+	return 1;
 }
 
+// return value:
+// >0 : OK
+// <0  : ERROR
 int Network::Send(int fd, Request *request)
 {
 	int packet_size = request->CountSize() + 4;
@@ -203,20 +218,11 @@ int Network::Send(int fd, Request *request)
 	request->Package(&p);
 
 	int nwrite = write(fd, buf, packet_size);
-	//std::cout << "Send " << nwrite << " bytes" << std::endl;
+	LOG(DEBUG) << "Send " << nwrite << " bytes";
 	if (nwrite < 0)
-	{
-		if (errno == EWOULDBLOCK)
-		{
-			return 0;
-		}
-		else
-		{
-			std::cerr << "An error has occured while writing to the server." << std::endl;
-			return -1;
-		}
-	}
-	return 0;
+		LOG(ERROR) << "Send request failed, return value = " << nwrite;
+
+	return nwrite;
 }
 
 short Network::GetApiKeyFromResponse(int correlation_id)
@@ -259,38 +265,39 @@ int Network::PartitionAssignment()
 	return 0;
 }
 
+// return value:
+// >0: OK
+// =0: close by peer
+// <0: ERROR
 int Network::CompleteRead(int fd, char *buf, int total_len)
 {
-	//char size_buf[4];
-	//read(fd, size_buf, 4);
-	//memcpy(buf, size_buf, 4);
-	//int total_len = Util::NetBytesToInt(size_buf);
-	//std::cout << "total len = " << total_len << std::endl;
-
 	int sum_read = 0;
 	while (sum_read != total_len)
 	{
 		char tmp_buf[1048576] = {0};
 		int nread = read(fd, tmp_buf, sizeof(tmp_buf));
-		//std::cout << "nread = " << nread << std::endl;
+		LOG(DEBUG) << "nread = " << nread;
 
 		if (nread <= 0)
 		{
 			if (nread == 0)
+			{
+				LOG(ERROR) << "connection has been closed";
 				std::cerr << "connection has been closed" << std::endl;
+			}
 			else
+			{
+				LOG(ERROR) << "error occurred";
 				std::cerr << "error occurred" << std::endl;
+			}
 
-			close(fd);
-			return -1;
+			return nread;
 		}
 
 		memcpy(buf + 0 + sum_read, tmp_buf, nread);
 		sum_read += nread;
-		//std::cout << sum_read << std::endl;
 	}
-
-	return 0;
+	return sum_read;
 }
 
 // Connect new broker if we found it
@@ -349,6 +356,29 @@ void Network::RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers
 	alive_brokers = updated_brokers;
 }
 
+// return value:
+// >0: OK, remember delete meta_response
+// <0: send or receive error
+int Network::FetchMetadata(MetadataRequest *meta_request, MetadataResponse **meta_response)
+{
+	// Fetch metadata from seed node
+	for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
+	{
+		Broker *broker = &(*b_it);
+		if (SendRequestHandler(broker, meta_request) < 0)
+			continue;
+
+		Response *response;
+		if (ReceiveResponseHandler(broker, &response) < 0)
+			continue;
+
+		*meta_response = dynamic_cast<MetadataResponse*>(response);
+		return 1;
+	}
+	LOG(ERROR) << "Fetch metadata failed...";
+	return -1;
+}
+
 //---------------------------state functions
 int Network::Initial(Event &event)
 {
@@ -359,22 +389,9 @@ int Network::Initial(Event &event)
 			std::vector<std::string> topics({topic_});
 			MetadataRequest *meta_request = new MetadataRequest(topics);
 			MetadataResponse *meta_response;
-
-			// Fetch metadata from seed node
-			for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
+			if (FetchMetadata(meta_request, &meta_response) < 0)
 			{
-				int ret;
-				Broker *broker = &(*b_it);
-				ret = SendRequestHandler(broker, meta_request);
-				if (ret != 0)
-					continue;
-
-				Response *response;
-				ret = ReceiveResponseHandler(broker, &response);
-				if (ret != 0)
-					continue;
-
-				meta_response = dynamic_cast<MetadataResponse*>(response);
+				delete meta_request;
 				break;
 			}
 
@@ -629,34 +646,11 @@ int16_t Network::CommitOffset(const std::vector<PartitionOM> &partitions)
 	return error_code;
 }
 
+// return value:
+// =0 : OK
+// <0 : ERROR
 int Network::FetchMessage()
 {
-#if 0
-	for (auto p_it = all_partitions_.begin(); p_it != all_partitions_.end(); ++p_it)
-	{
-		int partition = p_it->first;
-		int64_t offset = partition_offset_.at(partition);
-		Broker *leader = &alive_brokers_.at(p_it->second.GetLeaderId());
-
-		FetchRequest *fetch_request = new FetchRequest(topic_, partition, offset);
-		SendRequestHandler(leader, fetch_request);
-		Response *response;
-		ReceiveResponseHandler(leader, &response);
-		FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
-		fetch_response->PrintTopicMsg();
-
-		if (fetch_response->HasMessage(partition))
-		{
-			int64_t last_offset = fetch_response->GetLastOffset();
-			CommitOffset(partition, last_offset + 1);
-		}
-
-		delete fetch_request;
-		delete fetch_response;
-	}
-#endif
-
-#if 1
 	for (auto bp_it = broker_owned_partition_.begin(); bp_it != broker_owned_partition_.end(); ++bp_it)
 	{
 		std::vector<int> &owned_partitions = bp_it->second;
@@ -671,9 +665,19 @@ int Network::FetchMessage()
 		int leader_id = bp_it->first;
 		Broker *leader = &alive_brokers_.at(leader_id);
 		FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
-		SendRequestHandler(leader, fetch_request);
+		if (SendRequestHandler(leader, fetch_request) < 0)
+		{
+			delete fetch_request;
+			return -1;
+		}
+
 		Response *response;
-		ReceiveResponseHandler(leader, &response);
+		if (ReceiveResponseHandler(leader, &response) < 0)
+		{
+			delete fetch_request;
+			return -1;
+		}
+
 		FetchResponse *fetch_response = dynamic_cast<FetchResponse*>(response);
 		fetch_response->PrintTopicMsg();
 
@@ -689,13 +693,18 @@ int Network::FetchMessage()
 		}
 
 		if (!commit_partitions.empty())
-			CommitOffset(commit_partitions);
+		{
+			if (CommitOffset(commit_partitions) != ErrorCode::NO_ERROR)
+			{
+				delete fetch_request;
+				delete fetch_response;
+				return -1;
+			}
+		}
 
 		delete fetch_request;
 		delete fetch_response;
 	}
-#endif
-
 	return 0;
 }
 
@@ -715,7 +724,14 @@ int Network::PartOfGroup(Event &event)
 				break;
 			}
 
-			FetchMessage();
+			int ret = FetchMessage();
+			if (ret < 0)
+			{
+				// next state
+				current_state_ = &Network::Initial;
+				event = Event::STARTUP;
+				LOG(INFO) << "Change state to Initial...";
+			}
 
 			error_code = HeartbeatTask();
 			if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
@@ -727,9 +743,6 @@ int Network::PartOfGroup(Event &event)
 			}
 			break;
 
-			// next state
-			//current_state_ = &Network::Initial;
-			//event = Event::STARTUP;
 		}
 	}
 	return 0;

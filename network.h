@@ -11,6 +11,8 @@
 
 class KafkaClient;
 class PartitionOM;
+class MetadataRequest;
+class MetadataResponse;
 
 enum class Event {
 	STARTUP,
@@ -44,6 +46,7 @@ public:
 	void DisconnectDownBroker(std::unordered_map<int, Broker> &old_brokers, std::unordered_map<int, Broker> &new_brokers);
 	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &alive_brokers);
 	void RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers, std::unordered_map<int, Broker> &updated_brokers);
+	int FetchMetadata(MetadataRequest *meta_request, MetadataResponse **meta_response);
 
 	typedef int (Network::*StateProc)(Event &event);
 	StateProc current_state_;

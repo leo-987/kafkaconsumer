@@ -16,6 +16,8 @@ Broker::Broker(int fd, int id, const std::string &ip, int port)
 
 Broker::Broker(char **buf)
 {
+	fd_ = -1;
+
 	// node id
 	id_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;

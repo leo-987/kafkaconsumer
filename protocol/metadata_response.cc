@@ -187,21 +187,8 @@ void MetadataResponse::ParseBrokers(std::unordered_map<int, Broker> &updated_bro
 {
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 	{
-		//std::string alive_ip = Util::HostnameToIp(b_it->ip_);
-		//int fd = GetFdFromIp(alive_ip, origin_brokers);
-		//if (fd > 0)
-		//{
-			Broker alive_broker(-1, b_it->id_, b_it->ip_, b_it->port_);
-			updated_brokers.insert({b_it->id_, alive_broker});
-		//}
-		//else
-		//{
-		//	// new broker
-		//	Broker new_broker(-1 /* fd */, b_it->id_, b_it->ip_, b_it->port_);
-		//	updated_brokers.insert({b_it->id_, new_broker});
-		//	LOG(INFO) << "New broker was found, broker id = " << b_it->id_;
-		//	continue;
-		//}
+		//Broker alive_broker(-1, b_it->id_, b_it->ip_, b_it->port_);
+		updated_brokers.insert({b_it->id_, *b_it});
 	}
 }
 
