@@ -51,7 +51,7 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		if (fd < 0)
 			continue;
 		Broker broker(fd, tmp_broker_id, ip, port);
-		seed_brokers_.push_back(broker);
+		//seed_brokers_.push_back(broker);
 		alive_brokers_.insert({tmp_broker_id, broker});
 		tmp_broker_id--;
 	}
@@ -90,17 +90,27 @@ int Network::Stop()
 
 // return value:
 // >0: OK, remember delete response
+// =0: peer down
 // <0: ERROR
 int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 {
 	int ret = Receive(broker->fd_, response);
 	if (ret > 0)
 		(*response)->PrintAll();
+	else if (ret == 0)
+	{
+
+	}
+	else
+	{
+		// error
+	}
 	return ret;
 }
 
 // return value:
 // >0 : OK
+// =0 : close by peer
 // <0 : ERROR
 int Network::SendRequestHandler(Broker *broker, Request *request)
 {
@@ -116,11 +126,17 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 
 // return value:
 // >0: OK, remember delete res
+// =0: peer down
 // <0: ERROR
 int Network::Receive(int fd, Response **res)
 {
 	char size_buf[4];
-	read(fd, size_buf, 4);
+	int nread = read(fd, size_buf, 4);
+	if (nread != 4)
+	{
+		LOG(INFO) << "Response header total len = 0, broker down";
+		return 0;
+	}
 	int total_len = Util::NetBytesToInt(size_buf);
 	LOG(DEBUG) << "Response header total len = " << total_len;
 
@@ -208,7 +224,8 @@ int Network::Receive(int fd, Response **res)
 
 // return value:
 // >0 : OK
-// <0  : ERROR
+// =0 : close by peer
+// <0 : ERROR
 int Network::Send(int fd, Request *request)
 {
 	int packet_size = request->CountSize() + 4;
@@ -219,7 +236,9 @@ int Network::Send(int fd, Request *request)
 
 	int nwrite = write(fd, buf, packet_size);
 	LOG(DEBUG) << "Send " << nwrite << " bytes";
-	if (nwrite < 0)
+	if (nwrite == 0)
+		LOG(INFO) << "Disconected by peer...";
+	else if (nwrite < 0)
 		LOG(ERROR) << "Send request failed, return value = " << nwrite;
 
 	return nwrite;
@@ -282,7 +301,7 @@ int Network::CompleteRead(int fd, char *buf, int total_len)
 		{
 			if (nread == 0)
 			{
-				LOG(ERROR) << "connection has been closed";
+				LOG(INFO) << "connection has been closed";
 				std::cerr << "connection has been closed" << std::endl;
 			}
 			else
@@ -362,15 +381,39 @@ void Network::RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers
 int Network::FetchMetadata(MetadataRequest *meta_request, MetadataResponse **meta_response)
 {
 	// Fetch metadata from seed node
-	for (auto b_it = seed_brokers_.begin(); b_it != seed_brokers_.end(); ++b_it)
+	for (auto b_it = alive_brokers_.begin(); b_it != alive_brokers_.end(); /* NULL */)
 	{
-		Broker *broker = &(*b_it);
-		if (SendRequestHandler(broker, meta_request) < 0)
+		Broker *broker = &(b_it->second);
+		int ret = SendRequestHandler(broker, meta_request);
+		if (ret <= 0)
+		{
+			if (ret == 0)
+			{
+				// down
+				close(b_it->second.fd_);
+				//b_it = seed_brokers_.erase(b_it);
+				b_it = alive_brokers_.erase(b_it);
+			}
+			else
+				++b_it;
 			continue;
+		}
 
 		Response *response;
-		if (ReceiveResponseHandler(broker, &response) < 0)
+		ret = ReceiveResponseHandler(broker, &response);
+		if (ret <= 0)
+		{
+			if (ret == 0)
+			{
+				// down
+				close(b_it->second.fd_);
+				//b_it = seed_brokers_.erase(b_it);
+				b_it = alive_brokers_.erase(b_it);
+			}
+			else
+				++b_it;
 			continue;
+		}
 
 		*meta_response = dynamic_cast<MetadataResponse*>(response);
 		return 1;
@@ -422,7 +465,6 @@ int Network::Initial(Event &event)
 			break;
 		}
 	}
-
 	return 0;
 }
 
@@ -432,10 +474,21 @@ int Network::DiscoverCoordinator(Event &event)
 	auto b_it = alive_brokers_.begin();
 	Broker *broker = &(b_it->second);
 
-	Response *response;
 	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(group_);
 	SendRequestHandler(broker, group_request);
-	ReceiveResponseHandler(broker, &response);
+
+	// TODO
+	Response *response;
+	if (ReceiveResponseHandler(broker, &response) <= 0)
+	{
+		// next state
+		current_state_ = &Network::Initial;
+		event = Event::STARTUP;
+		LOG(INFO) << "Change state to Initial...";
+		delete group_request;
+		return 0;
+	}
+
 	GroupCoordinatorResponse *group_response = dynamic_cast<GroupCoordinatorResponse*>(response);
 
 	int32_t co_id = group_response->GetCoordinatorId();
@@ -665,14 +718,14 @@ int Network::FetchMessage()
 		int leader_id = bp_it->first;
 		Broker *leader = &alive_brokers_.at(leader_id);
 		FetchRequest *fetch_request = new FetchRequest(topic_, fetch_partitions);
-		if (SendRequestHandler(leader, fetch_request) < 0)
+		if (SendRequestHandler(leader, fetch_request) <= 0)
 		{
 			delete fetch_request;
 			return -1;
 		}
 
 		Response *response;
-		if (ReceiveResponseHandler(leader, &response) < 0)
+		if (ReceiveResponseHandler(leader, &response) <= 0)
 		{
 			delete fetch_request;
 			return -1;
@@ -721,6 +774,7 @@ int Network::PartOfGroup(Event &event)
 				// next state
 				current_state_ = &Network::JoinGroup;
 				event = Event::JOIN_WITH_PREVIOUS_CONSUMER_ID;
+				LOG(INFO) << "Change state to JoinGroup...";
 				break;
 			}
 
@@ -731,6 +785,7 @@ int Network::PartOfGroup(Event &event)
 				current_state_ = &Network::Initial;
 				event = Event::STARTUP;
 				LOG(INFO) << "Change state to Initial...";
+				break;
 			}
 
 			error_code = HeartbeatTask();
@@ -739,10 +794,10 @@ int Network::PartOfGroup(Event &event)
 				// next state
 				current_state_ = &Network::JoinGroup;
 				event = Event::JOIN_WITH_PREVIOUS_CONSUMER_ID;
+				LOG(INFO) << "Change state to JoinGroup...";
 				break;
 			}
 			break;
-
 		}
 	}
 	return 0;
