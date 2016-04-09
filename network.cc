@@ -60,7 +60,6 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 
 	event_ = Event::STARTUP;
 	current_state_ = &Network::Initial;
-
 }
 
 Network::~Network()
@@ -90,7 +89,7 @@ int Network::Stop()
 
 // return value:
 // >0: OK, remember delete response
-// =0: peer down
+// =0: peer down, remove it from alive_brokers_
 // <0: ERROR
 int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 {
@@ -99,28 +98,49 @@ int Network::ReceiveResponseHandler(Broker *broker, Response **response)
 		(*response)->PrintAll();
 	else if (ret == 0)
 	{
-
-	}
-	else
-	{
-		// error
+		for (auto b_it = alive_brokers_.begin(); b_it != alive_brokers_.end(); /* NULL */)
+		{
+			if (&(b_it->second) != broker)
+			{
+				++b_it;
+				continue;
+			}
+			close(b_it->second.fd_);
+			b_it = alive_brokers_.erase(b_it);
+			break;
+		}
 	}
 	return ret;
 }
 
 // return value:
 // >0 : OK
-// =0 : close by peer
-// <0 : ERROR
+// =0 : close by peer, remove it from alive_brokers_
+// <0 : ERROR, remove it from alive_brokers_
 int Network::SendRequestHandler(Broker *broker, Request *request)
 {
-	//request->PrintAll();
+	request->PrintAll();
 	int ret = Send(broker->fd_, request);
 	if (ret > 0)
 	{
 		last_correlation_id_ = request->GetCorrelationId();
 		last_api_key_ = request->GetApiKey();
 	}
+	else if (ret <= 0)
+	{
+		for (auto b_it = alive_brokers_.begin(); b_it != alive_brokers_.end(); /* NULL */)
+		{
+			if (&(b_it->second) != broker)
+			{
+				++b_it;
+				continue;
+			}
+			close(b_it->second.fd_);
+			b_it = alive_brokers_.erase(b_it);
+			break;
+		}
+	}
+
 	return ret;
 }
 
@@ -279,7 +299,8 @@ int Network::PartitionAssignment()
 			owned.push_back(pm_it->second.GetPartitionId());
 			++pm_it;
 		}
-		member_partitions_.insert({*m_it, owned});
+		//member_partitions_.insert({*m_it, owned});
+		member_partitions_[*m_it] = owned;
 	}
 	return 0;
 }
@@ -332,7 +353,11 @@ void Network::ConnectNewBroker(std::unordered_map<int, Broker> &brokers)
 		int port = broker.port_;
 		int fd = NetUtil::NewTcpClient(ip.c_str(), port);
 		if (fd < 0)
+		{
+			// This may happen when broker down and metadata response contain this broker
+			// in first few seconds.
 			continue;
+		}
 
 		broker.fd_ = fd;
 	}
@@ -380,38 +405,19 @@ void Network::RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers
 // <0: send or receive error
 int Network::FetchMetadata(MetadataRequest *meta_request, MetadataResponse **meta_response)
 {
-	// Fetch metadata from seed node
 	for (auto b_it = alive_brokers_.begin(); b_it != alive_brokers_.end(); /* NULL */)
 	{
 		Broker *broker = &(b_it->second);
-		int ret = SendRequestHandler(broker, meta_request);
-		if (ret <= 0)
+		if (SendRequestHandler(broker, meta_request) <= 0)
 		{
-			if (ret == 0)
-			{
-				// down
-				close(b_it->second.fd_);
-				//b_it = seed_brokers_.erase(b_it);
-				b_it = alive_brokers_.erase(b_it);
-			}
-			else
-				++b_it;
+			b_it = alive_brokers_.begin();
 			continue;
 		}
 
 		Response *response;
-		ret = ReceiveResponseHandler(broker, &response);
-		if (ret <= 0)
+		if (ReceiveResponseHandler(broker, &response) <= 0)
 		{
-			if (ret == 0)
-			{
-				// down
-				close(b_it->second.fd_);
-				//b_it = seed_brokers_.erase(b_it);
-				b_it = alive_brokers_.erase(b_it);
-			}
-			else
-				++b_it;
+			b_it = alive_brokers_.begin();
 			continue;
 		}
 
@@ -421,6 +427,7 @@ int Network::FetchMetadata(MetadataRequest *meta_request, MetadataResponse **met
 	LOG(ERROR) << "Fetch metadata failed...";
 	return -1;
 }
+
 
 //---------------------------state functions
 int Network::Initial(Event &event)
@@ -440,13 +447,10 @@ int Network::Initial(Event &event)
 
 			std::unordered_map<int, Broker> updated_brokers;
 		    meta_response->ParseBrokers(updated_brokers);
-
 			if (!updated_brokers.empty())
 			{
 				RefreshAliveBrokers(alive_brokers_, updated_brokers);
-
-				int16_t error_code = meta_response->ParsePartitions(all_partitions_);
-				if (error_code == ErrorCode::NO_ERROR)
+				if (meta_response->ParsePartitions(all_partitions_) == ErrorCode::NO_ERROR)
 				{
 					// next state
 					current_state_ = &Network::DiscoverCoordinator;
@@ -461,7 +465,50 @@ int Network::Initial(Event &event)
 
 			delete meta_request;
 			delete meta_response;
+			break;
+		}
+		case Event::REFRESH_METADATA:
+		{
+			std::vector<std::string> topics({topic_});
+			MetadataRequest *meta_request = new MetadataRequest(topics);
+			MetadataResponse *meta_response;
+			if (FetchMetadata(meta_request, &meta_response) < 0)
+			{
+				delete meta_request;
+				break;
+			}
 
+			std::unordered_map<int, Broker> updated_brokers;
+		    meta_response->ParseBrokers(updated_brokers);
+			if (!updated_brokers.empty())
+			{
+				RefreshAliveBrokers(alive_brokers_, updated_brokers);
+				if (alive_brokers_.find(coordinator_->id_) != alive_brokers_.end())
+				{
+					// coordinator still up
+					coordinator_ = &(alive_brokers_.find(coordinator_->id_)->second);
+					if (meta_response->ParsePartitions(all_partitions_) == ErrorCode::NO_ERROR)
+					{
+						// next state
+						current_state_ = &Network::JoinGroup;
+						event = Event::JOIN_WITH_PREVIOUS_CONSUMER_ID;
+					}
+				}
+				else
+				{
+					// coordinator down, we should discover it.
+					current_state_ = &Network::DiscoverCoordinator;
+					event = Event::DISCOVER_COORDINATOR;
+				}
+			}
+			else
+			{
+				// No valid broker, sleep and retry metadata request in next loop
+				sleep(5);
+			}
+
+			delete meta_request;
+			delete meta_response;
 			break;
 		}
 	}
@@ -475,9 +522,16 @@ int Network::DiscoverCoordinator(Event &event)
 	Broker *broker = &(b_it->second);
 
 	GroupCoordinatorRequest *group_request = new GroupCoordinatorRequest(group_);
-	SendRequestHandler(broker, group_request);
+	if (SendRequestHandler(broker, group_request) <= 0)
+	{
+		// next state
+		current_state_ = &Network::Initial;
+		event = Event::STARTUP;
+		LOG(INFO) << "Change state to Initial...";
+		delete group_request;
+		return 0;
+	}
 
-	// TODO
 	Response *response;
 	if (ReceiveResponseHandler(broker, &response) <= 0)
 	{
@@ -514,7 +568,12 @@ int Network::JoinGroup(Event &event)
 			std::vector<std::string> topics({topic_});
 			std::string member_id = "";
 			JoinGroupRequest *join_request = new JoinGroupRequest(group_, member_id, topics);
-			SendRequestHandler(coordinator_, join_request);
+			if (SendRequestHandler(coordinator_, join_request) <= 0)
+			{
+				delete join_request;
+				break;
+			}
+
 			Response *response;
 			ReceiveResponseHandler(coordinator_, &response);
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
@@ -631,9 +690,14 @@ int16_t Network::FetchValidOffset()
 {
 	int16_t error_code = 0;
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
-	SendRequestHandler(coordinator_, offset_fetch_request);
+	error_code = SendRequestHandler(coordinator_, offset_fetch_request);
+
 	Response *response;
-	ReceiveResponseHandler(coordinator_, &response);
+	if ((error_code = ReceiveResponseHandler(coordinator_, &response)) <= 0)
+	{
+		delete offset_fetch_request;
+		return -1;
+	}
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
 	offset_fetch_response->ParseOffset(partition_offset_);
 	error_code = offset_fetch_response->GetErrorCode();
@@ -655,6 +719,13 @@ int16_t Network::FetchValidOffset()
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
+
+		//for (auto i = all_partitions_.begin(); i != all_partitions_.end(); ++i)
+		//{
+		//	std::cout << "partition id = " << i->second.GetPartitionId() << \
+		//		"leader id = " << i->second.GetLeaderId() << std::endl;
+		//}
+
 		Broker *leader = &alive_brokers_.at(leader_id);
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
@@ -712,6 +783,8 @@ int Network::FetchMessage()
 		{
 			int partition = *p_it;
 			int64_t offset = partition_offset_.at(partition);
+			if (offset < 0)
+				continue;
 			fetch_partitions.push_back({partition, offset});
 		}
 
@@ -797,6 +870,10 @@ int Network::PartOfGroup(Event &event)
 				LOG(INFO) << "Change state to JoinGroup...";
 				break;
 			}
+
+			// next state
+			current_state_ = &Network::Initial;
+			event = Event::REFRESH_METADATA;
 			break;
 		}
 	}

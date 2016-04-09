@@ -112,10 +112,17 @@ void OffsetResponse::PrintAll()
 	LOG(DEBUG) << "------------------------";
 }
 
+// return value
+// >0
+// <0
 long OffsetResponse::GetNewOffset()
 {
 	// XXX: need improve
-	return topic_partition_array_[0].partition_offset_array_[0].offset_array_[0];
+	// When the broker just up, error code = NOT_LEADER_FOR_PARTITION (6)
+	if (topic_partition_array_[0].partition_offset_array_[0].error_code_ != 0)
+		return -1;
+	else
+		return topic_partition_array_[0].partition_offset_array_[0].offset_array_[0];
 }
 
 

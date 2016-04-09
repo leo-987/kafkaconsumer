@@ -21,6 +21,7 @@ enum class Event {
 	JOIN_WITH_PREVIOUS_CONSUMER_ID,
 	SYNC_GROUP,
 	FETCH,
+	REFRESH_METADATA,
 };
 
 class Network {

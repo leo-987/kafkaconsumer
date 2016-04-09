@@ -192,6 +192,10 @@ void MetadataResponse::ParseBrokers(std::unordered_map<int, Broker> &updated_bro
 	}
 }
 
+// Parse the partitions of a topic, skip all invalid partitions
+// return value:
+// 1. topic error code
+// 2. no error
 int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &partitions)
 {
 	partitions.clear();
