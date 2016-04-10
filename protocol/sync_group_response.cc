@@ -8,7 +8,11 @@ SyncGroupResponse::SyncGroupResponse(char **buf)
 	// error code
 	error_code_ = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	LOG_IF(error_code_ != 0, ERROR) << "SyncGroupResponse error code = " << error_code_;
+	if (error_code_ != 0)
+	{
+		LOG(ERROR) << "SyncGroupResponse error code = " << error_code_;
+		throw 1;
+	}
 
 	// MemberAssignment bytes
 	int member_assignment_size = Util::NetBytesToInt(*buf);

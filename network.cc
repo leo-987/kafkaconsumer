@@ -202,8 +202,16 @@ int Network::Receive(int fd, Response **res)
 		}
 		case ApiKey::SyncGroupType:
 		{
-			SyncGroupResponse *response = new SyncGroupResponse(&p);
-			*res = response;
+			try
+			{
+				SyncGroupResponse *response = new SyncGroupResponse(&p);
+				*res = response;
+			}
+			catch (...)
+			{
+				std::cout << "sync group response error" << std::endl;
+				return -1;
+			}
 			break;
 		}
 		case ApiKey::HeartbeatType:
@@ -575,7 +583,11 @@ int Network::JoinGroup(Event &event)
 			}
 
 			Response *response;
-			ReceiveResponseHandler(coordinator_, &response);
+			if (ReceiveResponseHandler(coordinator_, &response) <= 0)
+			{
+				delete join_request;
+				break;
+			}
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
 			generation_id_ = join_response->GetGenerationId();
 			member_id_ = join_response->GetMemberId();
@@ -595,9 +607,17 @@ int Network::JoinGroup(Event &event)
 			// rejoin
 			std::vector<std::string> topics({topic_});
 			JoinGroupRequest *join_request = new JoinGroupRequest(group_, member_id_, topics);
-			SendRequestHandler(coordinator_, join_request);
+			if (SendRequestHandler(coordinator_, join_request) <= 0)
+			{
+				delete join_request;
+				break;
+			}
 			Response *response;
-			ReceiveResponseHandler(coordinator_, &response);
+			if (ReceiveResponseHandler(coordinator_, &response) <= 0)
+			{
+				delete join_request;
+				break;
+			}
 			JoinGroupResponse *join_response = dynamic_cast<JoinGroupResponse*>(response);
 			generation_id_ = join_response->GetGenerationId();
 			member_id_ = join_response->GetMemberId();
@@ -646,9 +666,21 @@ int Network::SyncGroup(Event &event)
 	else
 		sync_request = new SyncGroupRequest(topic_, group_, generation_id_, member_id_);
 
-	SendRequestHandler(coordinator_, sync_request);
+	if (SendRequestHandler(coordinator_, sync_request) <= 0)
+	{
+		delete sync_request;
+		return -1;
+	}
 	Response *response;
-	ReceiveResponseHandler(coordinator_, &response);
+	if (ReceiveResponseHandler(coordinator_, &response) <= 0)
+	{
+		// next state
+		current_state_ = &Network::JoinGroup;
+		event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+
+		delete sync_request;
+		return -1;
+	}
 	SyncGroupResponse *sync_response = dynamic_cast<SyncGroupResponse*>(response);
 	int16_t error_code = sync_response->GetErrorCode();
 	my_partitions_id_.clear();
@@ -661,16 +693,6 @@ int Network::SyncGroup(Event &event)
 		// next state
 		current_state_ = &Network::PartOfGroup;
 		event = Event::FETCH;
-#if 0
-		for (auto i = broker_owned_partition_.begin(); i != broker_owned_partition_.end(); ++i)
-		{
-			std::cout << "broker " << i->first << std::endl;
-			for (auto j = i->second.begin(); j != i->second.end(); ++j)
-			{
-				std::cout << "partition " << *j << std::endl;
-			}
-		}
-#endif
 	}
 	else if (error_code == ErrorCode::ILLEGAL_GENERATION || error_code == ErrorCode::UNKNOWN_MEMBER_ID)
 	{
@@ -686,11 +708,19 @@ int Network::SyncGroup(Event &event)
 	return 0;
 }
 
+// return value:
+// <0: send or receive error
+// =0: OK
+// >0: some error code in response
 int16_t Network::FetchValidOffset()
 {
 	int16_t error_code = 0;
 	OffsetFetchRequest *offset_fetch_request = new OffsetFetchRequest(group_, topic_, my_partitions_id_);
-	error_code = SendRequestHandler(coordinator_, offset_fetch_request);
+	if (SendRequestHandler(coordinator_, offset_fetch_request) <= 0)
+	{
+		delete offset_fetch_request;
+		return -1;
+	}
 
 	Response *response;
 	if ((error_code = ReceiveResponseHandler(coordinator_, &response)) <= 0)
@@ -699,14 +729,13 @@ int16_t Network::FetchValidOffset()
 		return -1;
 	}
 	OffsetFetchResponse *offset_fetch_response = dynamic_cast<OffsetFetchResponse*>(response);
-	offset_fetch_response->ParseOffset(partition_offset_);
-	error_code = offset_fetch_response->GetErrorCode();
-	if (error_code != ErrorCode::NO_ERROR)
+	if (offset_fetch_response->GetErrorCode() != ErrorCode::NO_ERROR)
 	{
 		delete offset_fetch_request;
 		delete offset_fetch_response;
 		return error_code;
 	}
+	offset_fetch_response->ParseOffset(partition_offset_);
 
 	delete offset_fetch_request;
 	delete offset_fetch_response;
@@ -719,19 +748,21 @@ int16_t Network::FetchValidOffset()
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
-
-		//for (auto i = all_partitions_.begin(); i != all_partitions_.end(); ++i)
-		//{
-		//	std::cout << "partition id = " << i->second.GetPartitionId() << \
-		//		"leader id = " << i->second.GetLeaderId() << std::endl;
-		//}
-
+		std::cout << "leader id = " << leader_id << std::endl;
 		Broker *leader = &alive_brokers_.at(leader_id);
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
-		SendRequestHandler(leader, offset_request);
+		if (SendRequestHandler(leader, offset_request) <= 0)
+		{
+			delete offset_request;
+			continue;
+		}
 		Response *response;
-		ReceiveResponseHandler(leader, &response);
+		if (ReceiveResponseHandler(leader, &response) <= 0)
+		{
+			delete offset_request;
+			continue;
+		}
 		OffsetResponse *offset_response = dynamic_cast<OffsetResponse*>(response);
 		po_it->second = offset_response->GetNewOffset();
 		delete offset_request;
@@ -740,16 +771,30 @@ int16_t Network::FetchValidOffset()
 		int16_t tmp_error = CommitOffset(po_it->first, po_it->second);
 		if (tmp_error != ErrorCode::NO_ERROR)
 			error_code = tmp_error;
+		else
+			return -1;
 	}
 	return error_code;
 }
 
+// return value:
+// <0: send or receive error
+// =0: OK
+// >0: some error code in response
 int16_t Network::CommitOffset(int32_t partition, int64_t offset)
 {
 	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partition, offset);
-	SendRequestHandler(coordinator_, commit_request);
+	if (SendRequestHandler(coordinator_, commit_request) <= 0)
+	{
+		delete commit_request;
+		return -1;
+	}
 	Response *r;
-	ReceiveResponseHandler(coordinator_, &r);
+	if (ReceiveResponseHandler(coordinator_, &r) <= 0)
+	{
+		delete commit_request;
+		return -1;
+	}
 	OffsetCommitResponse *commit_response = dynamic_cast<OffsetCommitResponse*>(r);
 	int16_t error_code = commit_response->GetErrorCode();
 	delete commit_request;
@@ -757,12 +802,25 @@ int16_t Network::CommitOffset(int32_t partition, int64_t offset)
 	return error_code;
 }
 
+// return value:
+// <0: send or receive error
+// =0: OK
+// >0: some error code in response
 int16_t Network::CommitOffset(const std::vector<PartitionOM> &partitions)
 {
 	OffsetCommitRequest *commit_request = new OffsetCommitRequest(group_, generation_id_, member_id_, topic_, partitions);
-	SendRequestHandler(coordinator_, commit_request);
+	if (SendRequestHandler(coordinator_, commit_request) <= 0)
+	{
+		delete commit_request;
+		return -1;
+	}
+
 	Response *r;
-	ReceiveResponseHandler(coordinator_, &r);
+	if (ReceiveResponseHandler(coordinator_, &r) <= 0)
+	{
+		delete commit_request;
+		return -1;
+	}
 	OffsetCommitResponse *commit_response = dynamic_cast<OffsetCommitResponse*>(r);
 	int16_t error_code = commit_response->GetErrorCode();
 	delete commit_request;
@@ -850,6 +908,14 @@ int Network::PartOfGroup(Event &event)
 				LOG(INFO) << "Change state to JoinGroup...";
 				break;
 			}
+			else if (error_code < 0)
+			{
+				// next state
+				current_state_ = &Network::Initial;
+				event = Event::REFRESH_METADATA;
+				LOG(INFO) << "Change state to Initial...";
+				break;
+			}
 
 			int ret = FetchMessage();
 			if (ret < 0)
@@ -870,6 +936,14 @@ int Network::PartOfGroup(Event &event)
 				LOG(INFO) << "Change state to JoinGroup...";
 				break;
 			}
+			else if (error_code < 0)
+			{
+				// next state
+				current_state_ = &Network::Initial;
+				event = Event::REFRESH_METADATA;
+				LOG(INFO) << "Change state to Initial...";
+				break;
+			}
 
 			// next state
 			current_state_ = &Network::Initial;
@@ -880,12 +954,24 @@ int Network::PartOfGroup(Event &event)
 	return 0;
 }
 
+// return value:
+// -1: send or receive error
+// =0: OK
+// >0: there is a error code in response
 int16_t Network::HeartbeatTask()
 {
 	Response *response;
 	HeartbeatRequest *heart_request = new HeartbeatRequest(group_, generation_id_, member_id_);
-	SendRequestHandler(coordinator_, heart_request);
-	ReceiveResponseHandler(coordinator_, &response);
+	if (SendRequestHandler(coordinator_, heart_request) <= 0)
+	{
+		delete heart_request;
+		return -1;
+	}
+	if (ReceiveResponseHandler(coordinator_, &response) <= 0)
+	{
+		delete heart_request;
+		return -1;
+	}
 	HeartbeatResponse *heart_response = dynamic_cast<HeartbeatResponse*>(response);
 	delete heart_request;
 	delete heart_response;

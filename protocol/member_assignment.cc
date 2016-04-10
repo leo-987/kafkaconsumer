@@ -13,11 +13,10 @@ PartitionAssignment::PartitionAssignment(const std::string &topic, const std::ve
 
 PartitionAssignment::PartitionAssignment(char **buf)
 {
-	// topic
-	short topic_size = Util::NetBytesToShort(*buf);
+	short topic_len = Util::NetBytesToShort(*buf);
 	(*buf) += 2;
-	topic_ = std::string(*buf, topic_size);
-	(*buf) += topic_size;
+	topic_ = std::string(*buf, topic_len);
+	(*buf) += topic_len;
 
 	// Partition array
 	int partition_size = Util::NetBytesToInt(*buf);
@@ -51,8 +50,8 @@ void PartitionAssignment::PrintAll()
 void PartitionAssignment::Package(char **buf)
 {
 	// topic
-	short topic_size = htons((short)topic_.length());
-	memcpy(*buf, &topic_size, 2);
+	short topic_len = htons((short)topic_.length());
+	memcpy(*buf, &topic_len, 2);
 	(*buf) += 2;
 	memcpy(*buf, topic_.c_str(), topic_.length());
 	(*buf) += topic_.length();
