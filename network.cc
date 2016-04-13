@@ -144,59 +144,65 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 	return ret;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name: CompleteRead
+ *  Description: Read total_len bytes from fd to buf
+ *       Return:
+ *       	> 0 : OK, the bytes of received
+ *       	= 0 : closed by peer
+ *       	< 0 : ERROR
+ * =====================================================================================
+ */
 // return value:
 // >0: OK, remember delete res
 // =0: peer down
 // <0: ERROR
 int Network::Receive(int fd, Response **res)
 {
-	char size_buf[4];
-	int nread = read(fd, size_buf, 4);
+	char tmp_buf[4];
+	int nread = read(fd, tmp_buf, 4);
 	if (nread != 4)
 	{
-		LOG(INFO) << "Response header total len = 0, broker down";
+		LOG(INFO) << "Response header total length != 4, broker down";
 		return 0;
 	}
-	int total_len = Util::NetBytesToInt(size_buf);
+	int total_len = Util::NetBytesToInt(tmp_buf);
 	LOG(DEBUG) << "Response header total len = " << total_len;
 
-	char *buf = new char[total_len + 4];
-	memcpy(buf, size_buf, 4);
+	std::vector<char> read_buf(total_len + 4);
+	memcpy(read_buf.data(), tmp_buf, 4);
 
-	if (CompleteRead(fd ,buf + 4, total_len) <= 0)
-	{
-		delete[] buf;
+	if (CompleteRead(fd ,read_buf.data() + 4, total_len) <= 0)
 		return -1;
-	}
 
-	//int response_size = Util::NetBytesToInt(buf);
-	int correlation_id = Util::NetBytesToInt(buf + 4);
+	//int response_size = Util::NetBytesToInt(read_buf.data());
+	int correlation_id = Util::NetBytesToInt(read_buf.data() + 4);
 	int api_key = GetApiKeyFromResponse(correlation_id);
 	if (api_key < 0)
 	{
 		// not match
-		delete[] buf;
 		return -1;
 	}
 
-	char *p = buf;
+	char *ptr = read_buf.data();
 	switch(api_key)
 	{
 		case ApiKey::MetadataType:
 		{
-			MetadataResponse *response = new MetadataResponse(&p);
+			MetadataResponse *response = new MetadataResponse(&ptr);
 			*res = response;
 			break;
 		}
 		case ApiKey::GroupCoordinatorType:
 		{
-			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(&p);
+			GroupCoordinatorResponse *response = new GroupCoordinatorResponse(&ptr);
 			*res = response;
 			break;
 		}
 		case ApiKey::JoinGroupType:
 		{
-			JoinGroupResponse *response = new JoinGroupResponse(&p);
+			JoinGroupResponse *response = new JoinGroupResponse(&ptr);
 			*res = response;
 			break;
 		}
@@ -204,7 +210,7 @@ int Network::Receive(int fd, Response **res)
 		{
 			try
 			{
-				SyncGroupResponse *response = new SyncGroupResponse(&p);
+				SyncGroupResponse *response = new SyncGroupResponse(&ptr);
 				*res = response;
 			}
 			catch (...)
@@ -216,37 +222,37 @@ int Network::Receive(int fd, Response **res)
 		}
 		case ApiKey::HeartbeatType:
 		{
-			HeartbeatResponse *heart_response = new HeartbeatResponse(&p);
+			HeartbeatResponse *heart_response = new HeartbeatResponse(&ptr);
 			*res = heart_response;
 			break;
 		}
 		case ApiKey::FetchType:
 		{
-			FetchResponse *fetch_response = new FetchResponse(&p);
+			FetchResponse *fetch_response = new FetchResponse(&ptr);
 			*res = fetch_response;
 			break;
 		}
 		case ApiKey::OffsetFetchType:
 		{
-			OffsetFetchResponse *offset_fetch_response = new OffsetFetchResponse(&p);
+			OffsetFetchResponse *offset_fetch_response = new OffsetFetchResponse(&ptr);
 			*res = offset_fetch_response;
 			break;
 		}
 		case ApiKey::OffsetType:
 		{
-			OffsetResponse *offset_response = new OffsetResponse(&p);
+			OffsetResponse *offset_response = new OffsetResponse(&ptr);
 			*res = offset_response;
 			break;
 		}
 		case ApiKey::OffsetCommitType:
 		{
-			OffsetCommitResponse *commit_response = new OffsetCommitResponse(&p);
+			OffsetCommitResponse *commit_response = new OffsetCommitResponse(&ptr);
 			*res = commit_response;
 			break;
 		}
 	}
 
-	delete[] buf;
+	//delete[] buf;
 	return 1;
 }
 
@@ -276,7 +282,7 @@ short Network::GetApiKeyFromResponse(int correlation_id)
 {
 	if (last_correlation_id_ != correlation_id)
 	{
-		std::cerr << "The correlation_id are not equal" << std::endl;
+		LOG(ERROR) << "The correlation_id are not equal";
 		return -1;
 	}
 
@@ -313,36 +319,34 @@ int Network::PartitionAssignment()
 	return 0;
 }
 
-// return value:
-// >0: OK
-// =0: close by peer
-// <0: ERROR
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name: CompleteRead
+ *  Description: Read total_len bytes from fd to buf
+ *       Return:
+ *       	> 0 : OK, the bytes of received
+ *       	= 0 : closed by peer
+ *       	< 0 : ERROR
+ * =====================================================================================
+ */
 int Network::CompleteRead(int fd, char *buf, int total_len)
 {
 	int sum_read = 0;
 	while (sum_read != total_len)
 	{
-		char tmp_buf[1048576] = {0};
-		int nread = read(fd, tmp_buf, sizeof(tmp_buf));
-		LOG(DEBUG) << "nread = " << nread;
+		int nread = read(fd, buf + sum_read, total_len);
 
+		LOG(DEBUG) << "nread = " << nread;
 		if (nread <= 0)
 		{
 			if (nread == 0)
-			{
 				LOG(INFO) << "connection has been closed";
-				std::cerr << "connection has been closed" << std::endl;
-			}
 			else
-			{
 				LOG(ERROR) << "error occurred";
-				std::cerr << "error occurred" << std::endl;
-			}
-
 			return nread;
 		}
 
-		memcpy(buf + 0 + sum_read, tmp_buf, nread);
 		sum_read += nread;
 	}
 	return sum_read;
@@ -748,7 +752,6 @@ int16_t Network::FetchValidOffset()
 		std::vector<int> need_update_partitions;
 		need_update_partitions.push_back(po_it->first);
 		int leader_id = all_partitions_.at(po_it->first).GetLeaderId();
-		std::cout << "leader id = " << leader_id << std::endl;
 		Broker *leader = &alive_brokers_.at(leader_id);
 
 		OffsetRequest *offset_request = new OffsetRequest(topic_, need_update_partitions);
@@ -945,7 +948,7 @@ int Network::PartOfGroup(Event &event)
 				break;
 			}
 
-			// next state
+			// TODO: execute this tast regularly
 			current_state_ = &Network::Initial;
 			event = Event::REFRESH_METADATA;
 			break;
