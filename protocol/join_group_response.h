@@ -19,9 +19,9 @@ public:
 
 class JoinGroupResponse: public Response {
 public:
-	JoinGroupResponse(int correlation_id, short error_code,
-			int generation_id, const std::string &group_protocol, const std::string &leader_id,
-			const std::string &member_id, const std::vector<Member> &members);
+	//JoinGroupResponse(int correlation_id, short error_code,
+	//		int generation_id, const std::string &group_protocol, const std::string &leader_id,
+	//		const std::string &member_id, const std::vector<Member> &members);
 
 	JoinGroupResponse(char **buf);
 	virtual ~JoinGroupResponse() {}

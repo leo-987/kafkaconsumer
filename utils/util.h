@@ -20,8 +20,21 @@ namespace Util
 	vector<string> Split(const string &str, char delimiter);
 
 	int NetBytesToInt(char *buf);
-
 	short NetBytesToShort(char *buf);
+
+	inline int ParseInt(char **buf)
+	{
+		int res = Util::NetBytesToInt(*buf);
+		(*buf) += 4;
+		return res;
+	}
+
+	inline int ParseShort(char **buf)
+	{
+		short res = Util::NetBytesToShort(*buf);
+		(*buf) += 2;
+		return res;
+	}
 
 	string HostnameToIp(const string &hostname);
 } // end of namespace

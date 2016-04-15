@@ -8,7 +8,7 @@
 //------------------------------Head
 class Response {
 public:
-	Response(short api_key, int correlation_id);
+	//Response(short api_key, int correlation_id);
 	Response(short api_key, char **buf);
 	virtual ~Response() {};
 	virtual int CountSize();

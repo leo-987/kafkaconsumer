@@ -35,7 +35,7 @@ public:
 	int SendRequestHandler(Broker *broker, Request *request);
 	int Receive(int fd, Response **res);
 	int Send(int fd, Request *request);
-	short GetApiKeyFromResponse(int correlation_id);
+	short GetLastApiKey(int correlation_id);
 	int PartitionAssignment();
 	int CompleteRead(int fd, char *buf, int total_len); 
 	std::unordered_map<int, std::vector<int>> CreateBrokerIdToOwnedPartitionMap(const std::vector<int> &owned_partitions);
@@ -48,6 +48,7 @@ public:
 	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &alive_brokers);
 	void RefreshAliveBrokers(std::unordered_map<int, Broker> &alive_brokers, std::unordered_map<int, Broker> &updated_brokers);
 	int FetchMetadata(MetadataRequest *meta_request, MetadataResponse **meta_response);
+	void RefreshMetadata(int period, Event &event);
 
 	typedef int (Network::*StateProc)(Event &event);
 	StateProc current_state_;

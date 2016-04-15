@@ -35,19 +35,19 @@ void Member::PrintAll()
 	LOG(DEBUG) << "member metadata = " << member_metadata_;
 }
 
-JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
-		int generation_id, const std::string &group_protocol, const std::string &leader_id,
-		const std::string &member_id, const std::vector<Member> &members)
-	: Response(ApiKey::JoinGroupType, correlation_id)
-{
-	error_code_ = error_code;
-	generation_id_ = generation_id;
-	group_protocol_ = group_protocol;
-	leader_id_ = leader_id;
-	member_id_ = member_id;
-	members_ = members;
-	Response::SetTotalSize(CountSize());
-}
+//JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
+//		int generation_id, const std::string &group_protocol, const std::string &leader_id,
+//		const std::string &member_id, const std::vector<Member> &members)
+//	: Response(ApiKey::JoinGroupType, correlation_id)
+//{
+//	error_code_ = error_code;
+//	generation_id_ = generation_id;
+//	group_protocol_ = group_protocol;
+//	leader_id_ = leader_id;
+//	member_id_ = member_id;
+//	members_ = members;
+//	Response::SetTotalSize(CountSize());
+//}
 
 JoinGroupResponse::JoinGroupResponse(char **buf)
 	: Response(ApiKey::JoinGroupType, buf)

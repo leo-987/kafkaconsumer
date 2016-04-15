@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <deque>
 #include <string.h>
+#include <time.h>
 
 #include "kafka_client.h"
 #include "network.h"
@@ -146,18 +147,14 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 
 /* 
  * ===  FUNCTION  ======================================================================
- *         Name: CompleteRead
- *  Description: Read total_len bytes from fd to buf
+ *         Name: Receive
+ *  Description: Receive a response from fd to res
  *       Return:
- *       	> 0 : OK, the bytes of received
+ *       	> 0 : OK, remember delete res
  *       	= 0 : closed by peer
  *       	< 0 : ERROR
  * =====================================================================================
  */
-// return value:
-// >0: OK, remember delete res
-// =0: peer down
-// <0: ERROR
 int Network::Receive(int fd, Response **res)
 {
 	char tmp_buf[4];
@@ -167,31 +164,37 @@ int Network::Receive(int fd, Response **res)
 		LOG(INFO) << "Response header total length != 4, broker down";
 		return 0;
 	}
+
 	int total_len = Util::NetBytesToInt(tmp_buf);
 	LOG(DEBUG) << "Response header total len = " << total_len;
 
 	std::vector<char> read_buf(total_len + 4);
 	memcpy(read_buf.data(), tmp_buf, 4);
 
-	if (CompleteRead(fd ,read_buf.data() + 4, total_len) <= 0)
-		return -1;
+	int ret;
+	if ((ret = CompleteRead(fd ,read_buf.data() + 4, total_len)) <= 0)
+		return ret;
 
 	//int response_size = Util::NetBytesToInt(read_buf.data());
 	int correlation_id = Util::NetBytesToInt(read_buf.data() + 4);
-	int api_key = GetApiKeyFromResponse(correlation_id);
+	int api_key = GetLastApiKey(correlation_id);
 	if (api_key < 0)
-	{
-		// not match
-		return -1;
-	}
+		return -1;	// not match
 
 	char *ptr = read_buf.data();
 	switch(api_key)
 	{
 		case ApiKey::MetadataType:
 		{
-			MetadataResponse *response = new MetadataResponse(&ptr);
-			*res = response;
+			try
+			{
+				MetadataResponse *response = new MetadataResponse(&ptr);
+				*res = response;
+			}
+			catch (...)
+			{
+
+			}
 			break;
 		}
 		case ApiKey::GroupCoordinatorType:
@@ -278,14 +281,22 @@ int Network::Send(int fd, Request *request)
 	return nwrite;
 }
 
-short Network::GetApiKeyFromResponse(int correlation_id)
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name: GetLastApiKey
+ *  Description: If correlation id is correct, get the last api key
+ *       Return:
+ *       	> 0 : The last api key
+ *       	-1  : last correlation id != current correlation id
+ * =====================================================================================
+ */
+short Network::GetLastApiKey(int correlation_id)
 {
 	if (last_correlation_id_ != correlation_id)
 	{
 		LOG(ERROR) << "The correlation_id are not equal";
 		return -1;
 	}
-
 	return last_api_key_;
 }
 
@@ -336,7 +347,6 @@ int Network::CompleteRead(int fd, char *buf, int total_len)
 	while (sum_read != total_len)
 	{
 		int nread = read(fd, buf + sum_read, total_len);
-
 		LOG(DEBUG) << "nread = " << nread;
 		if (nread <= 0)
 		{
@@ -346,7 +356,6 @@ int Network::CompleteRead(int fd, char *buf, int total_len)
 				LOG(ERROR) << "error occurred";
 			return nread;
 		}
-
 		sum_read += nread;
 	}
 	return sum_read;
@@ -645,7 +654,6 @@ int Network::JoinGroup(Event &event)
 	// next state
 	current_state_ = &Network::SyncGroup;
 	event = Event::SYNC_GROUP;
-
 	return 0;
 }
 
@@ -895,6 +903,18 @@ int Network::FetchMessage()
 	return 0;
 }
 
+void Network::RefreshMetadata(int period, Event &event)
+{
+	static int begin = time(NULL);
+	int elapsed_secs = time(NULL) - begin;
+	if (elapsed_secs > period)
+	{
+		begin = time(NULL);
+		current_state_ = &Network::Initial;
+		event = Event::REFRESH_METADATA;
+	}
+}
+
 int Network::PartOfGroup(Event &event)
 {
 	switch(event)
@@ -948,9 +968,7 @@ int Network::PartOfGroup(Event &event)
 				break;
 			}
 
-			// TODO: execute this tast regularly
-			current_state_ = &Network::Initial;
-			event = Event::REFRESH_METADATA;
+			RefreshMetadata(10, event);
 			break;
 		}
 	}
