@@ -3,16 +3,6 @@
 #include "easylogging++.h"
 #include "error_code.h"
 
-//PartitionMetadata::PartitionMetadata(short error_code, int partition_id, int leader,
-//		const std::vector<int> &replicas, const std::vector<int> &isr)
-//{
-//	partition_error_code_ = error_code;
-//	LOG_IF(partition_error_code_ != 0, ERROR) << "error code = " << partition_error_code_;
-//	partition_id_ = partition_id;
-//	leader_ = leader;
-//	replicas_ = replicas;
-//	isr_ = isr;
-//}
 
 PartitionMetadata::PartitionMetadata(char **buf)
 {
@@ -67,14 +57,6 @@ void PartitionMetadata::PrintAll()
 }
 
 //--------------------------------------------
-//TopicMetadata::TopicMetadata(short error_code, const std::string &topic_name,
-//		const std::vector<PartitionMetadata> &partition_metadata)
-//{
-//	topic_error_code_ = error_code;
-//	topic_ = topic_name;
-//	partition_metadata_ = partition_metadata;
-//}
-
 TopicMetadata::TopicMetadata(char **buf)
 {
 	topic_error_code_ = Util::NetBytesToShort(*buf);

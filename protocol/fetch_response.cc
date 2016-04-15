@@ -25,12 +25,16 @@ PartitionInfo::PartitionInfo(char **buf, int &invalid_bytes)
 
 	//std::cout << "message set size = " << message_set_size_ << std::endl;
 	if (message_set_size_ != 0)
-		message_set_ = MessageSet(buf, message_set_size_, invalid_bytes);
+		//message_set_ = MessageSet(buf, message_set_size_, invalid_bytes);
+		message_set_ = std::make_shared<MessageSet>(buf, message_set_size_, invalid_bytes);
 }
 
 int PartitionInfo::CountSize()
 {
-	return 4 + 2 + 8 + 4 + message_set_.CountSize();
+	int size = 4 + 2 + 8 + 4;
+	if (message_set_.use_count() != 0)
+		size += message_set_->CountSize();
+	return size;
 }
 
 void PartitionInfo::PrintAll()
@@ -39,7 +43,8 @@ void PartitionInfo::PrintAll()
 	LOG(DEBUG) << "error code = " << error_code_;
 	LOG(DEBUG) << "high water mark offset = " << high_water_mark_offset_;
 	LOG(DEBUG) << "message set size = " << message_set_size_;
-	message_set_.PrintAll();
+	if (message_set_.use_count() != 0)
+		message_set_->PrintAll();
 }
 
 //----------------------------------------------------------
@@ -104,14 +109,15 @@ FetchResponse::FetchResponse(char **buf)
 
 	for (int i = 0; i < array_size; i++)
 	{
-		TopicPartitionInfo topic_partition_info(buf);
+		//TopicPartitionInfo topic_partition_info(buf);
+		std::shared_ptr<TopicPartitionInfo> topic_partition_info(new TopicPartitionInfo(buf));
 		topic_partitions_.push_back(topic_partition_info);
 	}
 
 	//throttle_time_ = Util::NetBytesToInt(*buf);
 	(*buf) += 4;
 
-	TopicPartitionInfo &tp = topic_partitions_[0];
+	TopicPartitionInfo &tp = *(topic_partitions_[0]);
 	if (Response::GetTotalSize() - tp.GetInvalidBytes() != CountSize())
 	{
 		LOG(ERROR) << "Size are not equal";
@@ -125,7 +131,7 @@ int FetchResponse::CountSize()
 
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 	{
-		size += tp_it->CountSize();
+		size += (*tp_it)->CountSize();
 	}
 
 	size += 8;
@@ -138,7 +144,7 @@ void FetchResponse::PrintAll()
 	Response::PrintAll();
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
 	{
-		tp_it->PrintAll();
+		(*tp_it)->PrintAll();
 	}
 	LOG(DEBUG) << "throttle time = " << throttle_time_;
 	LOG(DEBUG) << "-----------------------";
@@ -148,7 +154,7 @@ void FetchResponse::PrintAll()
 void FetchResponse::PrintTopicMsg()
 {
 	// XXX: we assume only one topic
-	TopicPartitionInfo &tp = topic_partitions_[0];
+	TopicPartitionInfo &tp = *(topic_partitions_[0]);
 	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
 
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
@@ -157,7 +163,7 @@ void FetchResponse::PrintTopicMsg()
 		if (p.message_set_size_ == 0)
 			continue;
 
-		MessageSet &msg = p.message_set_;
+		MessageSet &msg = *(p.message_set_);
 		//std::cout << "topic: " << tp.topic_ << std::endl;
 		//std::cout << "partition: " << p.partition_ << std::endl;
 		msg.PrintMsg();
@@ -166,16 +172,16 @@ void FetchResponse::PrintTopicMsg()
 
 int64_t FetchResponse::GetLastOffset()
 {
-	if (topic_partitions_[0].partitions_info_[0].message_set_size_ != 0)
+	if (topic_partitions_[0]->partitions_info_[0].message_set_size_ != 0)
 		return -1;
 	else
-		return topic_partitions_[0].partitions_info_[0].message_set_.GetLastOffset();
+		return topic_partitions_[0]->partitions_info_[0].message_set_->GetLastOffset();
 }
 
 int64_t FetchResponse::GetLastOffset(int32_t partition)
 {
 	// XXX: we assume only one topic
-	TopicPartitionInfo &tp = topic_partitions_[0];
+	TopicPartitionInfo &tp = *(topic_partitions_[0]);
 	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
@@ -183,7 +189,7 @@ int64_t FetchResponse::GetLastOffset(int32_t partition)
 		if (p.partition_ != partition || p.message_set_size_ == 0)
 			continue;
 
-		MessageSet &msg = p_it->message_set_;
+		MessageSet &msg = *(p_it->message_set_);
 		return msg.GetLastOffset();
 	}
 	return -1;

@@ -75,20 +75,21 @@ OffsetAndMessage::OffsetAndMessage(char **buf, int message_set_size, int &sum, i
 		throw 1;
 	}
 
-	message_ = Message(buf);
-	sum += message_.CountSize();
+	//message_ = Message(buf);
+	message_ = std::make_shared<Message>(buf);
+	sum += message_->CountSize();
 }
 
 int OffsetAndMessage::CountSize()
 {
-	return 8 + 4 + message_.CountSize();
+	return 8 + 4 + message_->CountSize();
 }
 
 void OffsetAndMessage::PrintAll()
 {
 	LOG(DEBUG) << "offset = " << offset_;
 	LOG(DEBUG) << "message size = " << message_size_;
-	message_.PrintAll();
+	message_->PrintAll();
 }
 
 MessageSet::MessageSet()
@@ -104,7 +105,6 @@ MessageSet::MessageSet(char **buf, int message_set_size, int &invalid_bytes)
 		{
 			OffsetAndMessage offset_message(buf, message_set_size, sum, invalid_bytes);
 			offset_message_.push_back(offset_message);
-			//sum += offset_message.CountSize();
 		}
 		catch (...)
 		{
@@ -135,7 +135,7 @@ void MessageSet::PrintMsg()
 {
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
 	{
-		Message &msg = om_it->message_;
+		Message &msg = *(om_it->message_);
 		//std::cout << "key: " << msg.key_ << "	value: " << msg.value_ << std::endl;
 		//std::cout << "offset: " << om_it->offset_ << "	value: " << msg.value_ << std::endl;
 		std::cout << msg.value_ << std::endl;

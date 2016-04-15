@@ -11,9 +11,6 @@
 
 class PartitionMetadata {
 public:
-	//PartitionMetadata(short error_code, int partition_id, int leader,
-	//	const std::vector<int> &replicas, const std::vector<int> &irs);
-
 	PartitionMetadata(char **buf);
 
 	int CountSize();
@@ -30,8 +27,6 @@ private:
 
 class TopicMetadata {
 public:
-	//TopicMetadata(short error_code, const std::string &topic_name,
-	//	const std::vector<PartitionMetadata> &partition_metadata);
 	TopicMetadata(char **buf);
 
 	int CountSize();

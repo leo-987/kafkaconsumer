@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <memory>
 
 class Message {
 public:
@@ -34,7 +35,7 @@ public:
 private:
 	long offset_;
 	int message_size_;	// the size of the subsequent request or response message in bytes
-	Message message_;
+	std::shared_ptr<Message> message_;
 };
 
 class MessageSet {
