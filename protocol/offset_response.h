@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 
 #include "response.h"
 
@@ -32,7 +33,7 @@ public:
 private:
 	// TopicName [PartitionOffsets]
 	std::string topic_;
-	std::vector<PartitionOffsets> partition_offset_array_;
+	std::vector<std::shared_ptr<PartitionOffsets>> partition_offset_array_;
 };
 
 // format: [TopicName [PartitionOffsets]]
@@ -47,7 +48,7 @@ public:
 	long GetNewOffset();
 
 private:
-	std::vector<TopicPartitionOR> topic_partition_array_;
+	std::vector<std::shared_ptr<TopicPartitionOR>> topic_partition_array_;
 };
 
 #endif

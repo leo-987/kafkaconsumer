@@ -50,7 +50,7 @@ TopicPartitionOR::TopicPartitionOR(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < array_size; i++)
 	{
-		PartitionOffsets partition_offset(buf);
+		std::shared_ptr<PartitionOffsets> partition_offset = std::make_shared<PartitionOffsets>(buf);
 		partition_offset_array_.push_back(partition_offset);
 	}
 }
@@ -61,7 +61,7 @@ int TopicPartitionOR::CountSize()
 	size += 4;
 	for (auto po_it = partition_offset_array_.begin(); po_it != partition_offset_array_.end(); ++po_it)
 	{
-		size += po_it->CountSize();
+		size += (*po_it)->CountSize();
 	}
 	return size;
 }
@@ -70,7 +70,7 @@ void TopicPartitionOR::PrintAll()
 {
 	LOG(DEBUG) << "topic = " << topic_;
 	for (auto po_it = partition_offset_array_.begin(); po_it != partition_offset_array_.end(); ++po_it)
-		po_it->PrintAll();
+		(*po_it)->PrintAll();
 }
 
 OffsetResponse::OffsetResponse(char **buf)
@@ -80,7 +80,7 @@ OffsetResponse::OffsetResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < array_size; i++)
 	{
-		TopicPartitionOR tp(buf);
+		std::shared_ptr<TopicPartitionOR> tp = std::make_shared<TopicPartitionOR>(buf);
 		topic_partition_array_.push_back(tp);
 	}
 
@@ -98,7 +98,7 @@ int OffsetResponse::CountSize()
 	size += 4;
 	for (auto tp_it = topic_partition_array_.begin(); tp_it != topic_partition_array_.end(); ++tp_it)
 	{
-		size += tp_it->CountSize();
+		size += (*tp_it)->CountSize();
 	}
 	return size;
 }
@@ -108,7 +108,7 @@ void OffsetResponse::PrintAll()
 	LOG(DEBUG) << "-----OffsetResponse-----";
 	Response::PrintAll();
 	for (auto tp_it = topic_partition_array_.begin(); tp_it != topic_partition_array_.end(); ++tp_it)
-		tp_it->PrintAll();
+		(*tp_it)->PrintAll();
 	LOG(DEBUG) << "------------------------";
 }
 
@@ -119,10 +119,10 @@ long OffsetResponse::GetNewOffset()
 {
 	// XXX: need improve
 	// When the broker just up, error code = NOT_LEADER_FOR_PARTITION (6)
-	if (topic_partition_array_[0].partition_offset_array_[0].error_code_ != 0)
+	if (topic_partition_array_[0]->partition_offset_array_[0]->error_code_ != 0)
 		return -1;
 	else
-		return topic_partition_array_[0].partition_offset_array_[0].offset_array_[0];
+		return topic_partition_array_[0]->partition_offset_array_[0]->offset_array_[0];
 }
 
 

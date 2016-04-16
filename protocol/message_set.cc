@@ -5,9 +5,9 @@
 #include "util.h"
 #include "easylogging++.h"
 
-Message::Message()
-{
-}
+//Message::Message()
+//{
+//}
 
 Message::Message(char **buf)
 {
@@ -119,9 +119,7 @@ int MessageSet::CountSize()
 	// NOTE: not 4
 	int size = 0;
 	for (auto om_it = offset_message_.begin(); om_it != offset_message_.end(); ++om_it)
-	{
 		size += om_it->CountSize();
-	}
 	return size;
 }
 

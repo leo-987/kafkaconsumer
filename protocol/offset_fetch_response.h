@@ -2,6 +2,7 @@
 #define _OFFSET_FETCH_RESPONSE_H_
 
 #include <string>
+#include <memory>
 
 #include "response.h"
 #include "util.h"
@@ -37,7 +38,7 @@ public:
 private:
 	// XXX: format
 	std::string topic_;
-	std::vector<PartitionOffsetME> partitions_info_;
+	std::vector<std::shared_ptr<PartitionOffsetME>> partitions_info_;
 };
 
 #endif

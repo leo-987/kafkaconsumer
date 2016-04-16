@@ -2,19 +2,6 @@
 #include "util.h"
 #include "easylogging++.h"
 
-#if 0
-GroupCoordinatorResponse::GroupCoordinatorResponse(int correlation_id, short error_code,
-		int coordinator_id, const std::string &coordinator_host, int coordinator_port)
-	: Response(ApiKey::GroupCoordinatorType, correlation_id)
-{
-	error_code_ = error_code;
-	coordinator_id_ = coordinator_id;
-	coordinator_host_ = coordinator_host;
-	coordinator_port_ = coordinator_port;
-	total_size_ = CountSize();
-}
-#endif
-
 GroupCoordinatorResponse::GroupCoordinatorResponse(char **buf)
 	: Response(ApiKey::GroupCoordinatorType, buf)
 {

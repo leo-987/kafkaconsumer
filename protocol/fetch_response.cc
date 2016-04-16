@@ -63,7 +63,7 @@ TopicPartitionInfo::TopicPartitionInfo(char **buf)
 	invalid_bytes_ = 0;
 	for (int i = 0; i < array_size; i++)
 	{
-		PartitionInfo partition_info(buf, invalid_bytes_);
+		std::shared_ptr<PartitionInfo> partition_info = std::make_shared<PartitionInfo>(buf, invalid_bytes_);
 		partitions_info_.push_back(partition_info);
 	}
 }
@@ -76,7 +76,7 @@ int TopicPartitionInfo::CountSize()
 	size += 4;
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
-		size += pi_it->CountSize();
+		size += (*pi_it)->CountSize();
 	}
 	return size;
 }
@@ -87,7 +87,7 @@ void TopicPartitionInfo::PrintAll()
 
 	for (auto pi_it = partitions_info_.begin(); pi_it != partitions_info_.end(); ++pi_it)
 	{
-		pi_it->PrintAll();
+		(*pi_it)->PrintAll();
 	}
 }
 
@@ -155,11 +155,11 @@ void FetchResponse::PrintTopicMsg()
 {
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = *(topic_partitions_[0]);
-	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
+	std::vector<std::shared_ptr<PartitionInfo>> &partitions_info = tp.partitions_info_;
 
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
-		PartitionInfo &p = *p_it;
+		PartitionInfo &p = **p_it;
 		if (p.message_set_size_ == 0)
 			continue;
 
@@ -172,24 +172,24 @@ void FetchResponse::PrintTopicMsg()
 
 int64_t FetchResponse::GetLastOffset()
 {
-	if (topic_partitions_[0]->partitions_info_[0].message_set_size_ != 0)
+	if (topic_partitions_[0]->partitions_info_[0]->message_set_size_ != 0)
 		return -1;
 	else
-		return topic_partitions_[0]->partitions_info_[0].message_set_->GetLastOffset();
+		return topic_partitions_[0]->partitions_info_[0]->message_set_->GetLastOffset();
 }
 
 int64_t FetchResponse::GetLastOffset(int32_t partition)
 {
 	// XXX: we assume only one topic
 	TopicPartitionInfo &tp = *(topic_partitions_[0]);
-	std::vector<PartitionInfo> &partitions_info = tp.partitions_info_;
+	std::vector<std::shared_ptr<PartitionInfo>> &partitions_info = tp.partitions_info_;
 	for (auto p_it = partitions_info.begin(); p_it != partitions_info.end(); ++p_it)
 	{
-		PartitionInfo &p = *p_it;
+		PartitionInfo &p = **p_it;
 		if (p.partition_ != partition || p.message_set_size_ == 0)
 			continue;
 
-		MessageSet &msg = *(p_it->message_set_);
+		MessageSet &msg = *((*p_it)->message_set_);
 		return msg.GetLastOffset();
 	}
 	return -1;

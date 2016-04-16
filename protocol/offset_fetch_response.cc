@@ -68,7 +68,7 @@ OffsetFetchResponse::OffsetFetchResponse(char **buf)
 	(*buf) += 4;
 	for (int32_t i = 0; i < partitions_array_size; i++)
 	{
-		PartitionOffsetME partition_info(buf);
+		std::shared_ptr<PartitionOffsetME> partition_info = std::make_shared<PartitionOffsetME>(buf);
 		partitions_info_.push_back(partition_info);
 	}
 
@@ -88,7 +88,7 @@ int OffsetFetchResponse::CountSize()
 	size += 4;
 	for (auto po_it = partitions_info_.begin(); po_it != partitions_info_.end(); ++po_it)
 	{
-		size += po_it->CountSize();
+		size += (*po_it)->CountSize();
 	}
 	return size;
 }
@@ -99,7 +99,7 @@ void OffsetFetchResponse::PrintAll()
 	Response::PrintAll();
 	LOG(DEBUG) << "topic = " << topic_;
 	for (auto po_it = partitions_info_.begin(); po_it != partitions_info_.end(); ++po_it)
-		po_it->PrintAll();
+		(*po_it)->PrintAll();
 	LOG(DEBUG) << "-----------------------------";
 }
 
@@ -107,14 +107,14 @@ int OffsetFetchResponse::ParseOffset(std::unordered_map<int, long> &partition_of
 {
 	for (auto po_it = partitions_info_.begin(); po_it != partitions_info_.end(); ++po_it)
 	{
-		if (po_it->GetErrorCode() != 0)
+		if ((*po_it)->GetErrorCode() != 0)
 		{
-			LOG(ERROR) << "error code = " << po_it->GetErrorCode();
+			LOG(ERROR) << "error code = " << (*po_it)->GetErrorCode();
 			continue;
 		}
 
-		int32_t partition = po_it->GetPartition();
-		int64_t offset = po_it->GetOffset();
+		int32_t partition = (*po_it)->GetPartition();
+		int64_t offset = (*po_it)->GetOffset();
 		partition_offset[partition] = offset;
 	}
 	return 0;
@@ -124,7 +124,7 @@ int16_t OffsetFetchResponse::GetErrorCode()
 {
 	for (auto po_it = partitions_info_.begin(); po_it != partitions_info_.end(); ++po_it)
 	{
-		int16_t error_code = po_it->GetErrorCode();
+		int16_t error_code = (*po_it)->GetErrorCode();
 		if (error_code != 0)
 		{
 			LOG(ERROR) << "error code = " << error_code;

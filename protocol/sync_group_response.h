@@ -1,6 +1,7 @@
 #ifndef _SYNC_GROUP_RESPONSE_H_
 #define _SYNC_GROUP_RESPONSE_H_
 
+#include <memory>
 #include "response.h"
 #include "member_assignment.h"
 
@@ -15,7 +16,7 @@ public:
 	int16_t GetErrorCode();
 
 	int16_t error_code_;
-	MemberAssignment member_assignment_;	// bytes
+	std::shared_ptr<MemberAssignment> member_assignment_;	// bytes
 };
 
 #endif

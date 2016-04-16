@@ -8,7 +8,7 @@
 
 class Message {
 public:
-	Message();
+	//Message();
 	Message(char **buf);
 
 	int CountSize();

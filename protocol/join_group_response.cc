@@ -35,20 +35,7 @@ void Member::PrintAll()
 	LOG(DEBUG) << "member metadata = " << member_metadata_;
 }
 
-//JoinGroupResponse::JoinGroupResponse(int correlation_id, short error_code,
-//		int generation_id, const std::string &group_protocol, const std::string &leader_id,
-//		const std::string &member_id, const std::vector<Member> &members)
-//	: Response(ApiKey::JoinGroupType, correlation_id)
-//{
-//	error_code_ = error_code;
-//	generation_id_ = generation_id;
-//	group_protocol_ = group_protocol;
-//	leader_id_ = leader_id;
-//	member_id_ = member_id;
-//	members_ = members;
-//	Response::SetTotalSize(CountSize());
-//}
-
+//---------------------------------------------------
 JoinGroupResponse::JoinGroupResponse(char **buf)
 	: Response(ApiKey::JoinGroupType, buf)
 {
@@ -80,7 +67,7 @@ JoinGroupResponse::JoinGroupResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < members_size; i++)
 	{
-		Member member(buf);
+		std::shared_ptr<Member> member = std::make_shared<Member>(buf);
 		members_.push_back(member);
 	}
 
@@ -102,8 +89,8 @@ int JoinGroupResponse::CountSize()
 
 	// array
 	size += 4;
-	for (unsigned int i = 0; i < members_.size(); i++)
-		size += members_[i].CountSize();
+	for (auto m_it = members_.begin(); m_it != members_.end(); ++m_it)
+		size += (*m_it)->CountSize();
 
 	return size;
 }
@@ -119,7 +106,7 @@ void JoinGroupResponse::PrintAll()
 	LOG(DEBUG) << "member id = " << member_id_;
 	LOG(DEBUG) << "members:";
 	for (auto it = members_.begin(); it != members_.end(); ++it)
-		it->PrintAll();
+		(*it)->PrintAll();
 	LOG(DEBUG) << "---------------------------";
 }
 
@@ -133,7 +120,7 @@ std::vector<std::string> JoinGroupResponse::GetAllMembers()
 	std::vector<std::string> members;
 
 	for (auto it = members_.begin(); it != members_.end(); ++it)
-		members.push_back(it->member_id_);
+		members.push_back((*it)->member_id_);
 
 	return members;
 }

@@ -7,9 +7,6 @@
 // format: ErrorCode CoordinatorId CoordinatorHost CoordinatorPort
 class GroupCoordinatorResponse: public Response {
 public:
-	//GroupCoordinatorResponse(int correlation_id, short error_code,
-	//	int coordinator_id, const std::string &coordinator_host, int coordinator_port);
-
 	GroupCoordinatorResponse(char **buf);
 	virtual ~GroupCoordinatorResponse() {};
 

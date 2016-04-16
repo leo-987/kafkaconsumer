@@ -72,7 +72,7 @@ TopicMetadata::TopicMetadata(char **buf)
 	(*buf) += 4;
 	for (int j = 0; j < partition_metadata_array_size; j++)
 	{
-		PartitionMetadata partition_metadata(buf);
+		std::shared_ptr<PartitionMetadata> partition_metadata = std::make_shared<PartitionMetadata>(buf);
 		partition_metadata_.push_back(partition_metadata);
 	}
 }
@@ -84,7 +84,7 @@ int TopicMetadata::CountSize()
 
 	size += 4;
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
-		size += it->CountSize();
+		size += (*it)->CountSize();
 
 	return size;
 }
@@ -95,7 +95,7 @@ void TopicMetadata::PrintAll()
 	LOG(DEBUG) << "topic name = " << topic_;
 
 	for (auto it = partition_metadata_.begin(); it != partition_metadata_.end(); ++it)
-		it->PrintAll();
+		(*it)->PrintAll();
 }
 
 //-------------------------------------------------
@@ -106,7 +106,7 @@ MetadataResponse::MetadataResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < array_size; i++)
 	{
-		Broker broker(buf);
+		std::shared_ptr<Broker> broker = std::make_shared<Broker>(buf);
 		brokers_.push_back(broker);
 	}
 
@@ -114,14 +114,14 @@ MetadataResponse::MetadataResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < topic_metadata_array_size; i++)
 	{
-		TopicMetadata topic_metadata(buf);
+		std::shared_ptr<TopicMetadata> topic_metadata = std::make_shared<TopicMetadata>(buf);
 		topic_metadata_.push_back(topic_metadata);
 	}
 
 	if (Response::GetTotalSize() != CountSize())
 	{
 		LOG(ERROR) << "CountSize are not equal";
-		throw;
+		throw 1;
 	}
 }
 
@@ -132,12 +132,12 @@ int MetadataResponse::CountSize()
 	// array
 	size += 4;
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
-		size += b_it->CountSize();
+		size += (*b_it)->CountSize();
 
 	// array
 	size += 4;
 	for (auto t_it = topic_metadata_.begin(); t_it != topic_metadata_.end(); ++t_it)
-		size += t_it->CountSize();
+		size += (*t_it)->CountSize();
 
 	return size;
 }
@@ -147,9 +147,9 @@ void MetadataResponse::PrintAll()
 	LOG(DEBUG) << "-----MetadataResponse-----";
 	Response::PrintAll();
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
-		b_it->PrintAll();
+		(*b_it)->PrintAll();
 	for (auto t_it = topic_metadata_.begin(); t_it != topic_metadata_.end(); ++t_it)
-		t_it->PrintAll();
+		(*t_it)->PrintAll();
 	LOG(DEBUG) << "--------------------------";
 }
 
@@ -170,7 +170,7 @@ void MetadataResponse::ParseBrokers(std::unordered_map<int, Broker> &updated_bro
 	for (auto b_it = brokers_.begin(); b_it != brokers_.end(); ++b_it)
 	{
 		//Broker alive_broker(-1, b_it->id_, b_it->ip_, b_it->port_);
-		updated_brokers.insert({b_it->id_, *b_it});
+		updated_brokers.insert({(*b_it)->id_, **b_it});
 	}
 }
 
@@ -183,7 +183,7 @@ int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &pa
 	partitions.clear();
 
 	// XXX: assuming only one topic
-	TopicMetadata &tm = topic_metadata_[0];
+	TopicMetadata &tm = *(topic_metadata_[0]);
 	int16_t topic_error_code = tm.topic_error_code_;
 	if (topic_error_code != ErrorCode::NO_ERROR)
 	{
@@ -193,17 +193,17 @@ int16_t MetadataResponse::ParsePartitions(std::unordered_map<int, Partition> &pa
 		return topic_error_code;
 	}
 
-	std::vector<PartitionMetadata> &pm = tm.partition_metadata_;
+	std::vector<std::shared_ptr<PartitionMetadata>> &pm = tm.partition_metadata_;
 	for (auto pm_it = pm.begin(); pm_it != pm.end(); ++pm_it)
 	{
-		if (pm_it->partition_error_code_ != ErrorCode::NO_ERROR)
+		if ((*pm_it)->partition_error_code_ != ErrorCode::NO_ERROR)
 		{
 			// 1. UnknownTopicOrPartition(3)
 			// 2. LeaderNotAvailable(5)
 			continue;
 		}
 
-		Partition partition(pm_it->partition_id_, pm_it->leader_);
+		Partition partition((*pm_it)->partition_id_, (*pm_it)->leader_);
 		partitions[partition.GetPartitionId()] = partition;
 	}
 	return ErrorCode::NO_ERROR;

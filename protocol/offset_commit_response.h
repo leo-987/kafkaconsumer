@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 
 #include "response.h"
 
@@ -29,7 +30,7 @@ public:
 	friend class OffsetCommitResponse;
 private:
 	std::string topic_;
-	std::vector<PartitionE> partitions_;
+	std::vector<std::shared_ptr<PartitionE>> partitions_;
 };
 
 // format: [TopicName [Partition ErrorCode]]
@@ -42,7 +43,7 @@ public:
 	int16_t GetErrorCode();
 
 private:
-	std::vector<TopicPartitionE> topic_partitions_;
+	std::vector<std::shared_ptr<TopicPartitionE>> topic_partitions_;
 };
 
 #endif

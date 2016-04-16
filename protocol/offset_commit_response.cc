@@ -41,7 +41,7 @@ TopicPartitionE::TopicPartitionE(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < array_size; i++)
 	{
-		PartitionE p(buf);
+		std::shared_ptr<PartitionE> p = std::make_shared<PartitionE>(buf);
 		partitions_.push_back(p);
 	}
 }
@@ -51,7 +51,7 @@ int TopicPartitionE::CountSize()
 	int size = 2 + topic_.length();
 	size += 4;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
-		size += p_it->CountSize();
+		size += (*p_it)->CountSize();
 	return size;
 }
 
@@ -59,7 +59,7 @@ void TopicPartitionE::PrintAll()
 {
 	LOG(DEBUG) << "topic = " << topic_;
 	for (auto p_it = partitions_.begin(); p_it != partitions_.end(); ++p_it)
-		p_it->PrintAll();
+		(*p_it)->PrintAll();
 }
 
 //------------------------------------------------------
@@ -70,7 +70,7 @@ OffsetCommitResponse::OffsetCommitResponse(char **buf)
 	(*buf) += 4;
 	for (int i = 0; i < array_size; i++)
 	{
-		TopicPartitionE tp(buf);
+		std::shared_ptr<TopicPartitionE> tp = std::make_shared<TopicPartitionE>(buf);
 		topic_partitions_.push_back(tp);
 	}
 
@@ -86,7 +86,7 @@ int OffsetCommitResponse::CountSize()
 	int size = Response::CountSize();
 	size += 4;
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
-		size += tp_it->CountSize();
+		size += (*tp_it)->CountSize();
 	return size;
 }
 
@@ -95,16 +95,16 @@ void OffsetCommitResponse::PrintAll()
 	LOG(DEBUG) << "------------OffsetCommitResponse-------------";
 	Response::PrintAll();
 	for (auto tp_it = topic_partitions_.begin(); tp_it != topic_partitions_.end(); ++tp_it)
-		tp_it->PrintAll();
+		(*tp_it)->PrintAll();
 	LOG(DEBUG) << "---------------------------------------------";
 }
 
 int16_t OffsetCommitResponse::GetErrorCode()
 {
-	std::vector<PartitionE> &partitions = topic_partitions_[0].partitions_;
+	std::vector<std::shared_ptr<PartitionE>> &partitions = topic_partitions_[0]->partitions_;
 	for (auto p_it = partitions.begin(); p_it != partitions.end(); ++p_it)
 	{
-		int16_t error_code = p_it->GetErrorCode();
+		int16_t error_code = (*p_it)->GetErrorCode();
 		if (error_code != 0)
 			return error_code;
 	}

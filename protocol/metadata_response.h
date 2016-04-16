@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 
 #include "response.h"
 #include "broker.h"
@@ -36,7 +37,7 @@ public:
 private:
 	int16_t topic_error_code_;
 	std::string topic_;
-	std::vector<PartitionMetadata> partition_metadata_;
+	std::vector<std::shared_ptr<PartitionMetadata>> partition_metadata_;
 };
 
 // format: [Broker][TopicMetadata]
@@ -52,8 +53,8 @@ public:
 	int16_t ParsePartitions(std::unordered_map<int, Partition> &partitions);
 
 private:
-	std::vector<Broker> brokers_;				// array
-	std::vector<TopicMetadata> topic_metadata_;	// array
+	std::vector<std::shared_ptr<Broker>> brokers_;				// array
+	std::vector<std::shared_ptr<TopicMetadata>> topic_metadata_;	// array
 	int GetFdFromIp(const std::string &alive_ip, const std::unordered_map<int, Broker> &origin_brokers);
 };
 

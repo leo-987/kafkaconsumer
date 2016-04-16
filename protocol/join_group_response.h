@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 #include "response.h"
 
 class Member {
@@ -19,10 +20,6 @@ public:
 
 class JoinGroupResponse: public Response {
 public:
-	//JoinGroupResponse(int correlation_id, short error_code,
-	//		int generation_id, const std::string &group_protocol, const std::string &leader_id,
-	//		const std::string &member_id, const std::vector<Member> &members);
-
 	JoinGroupResponse(char **buf);
 	virtual ~JoinGroupResponse() {}
 
@@ -40,6 +37,6 @@ public:
 	std::string group_protocol_;
 	std::string leader_id_;
 	std::string member_id_;
-	std::vector<Member> members_;	// array
+	std::vector<std::shared_ptr<Member>> members_;	// array
 };
 #endif

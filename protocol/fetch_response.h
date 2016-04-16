@@ -40,7 +40,7 @@ public:
 private:
 	int invalid_bytes_;
 	std::string topic_;
-	std::vector<PartitionInfo> partitions_info_;
+	std::vector<std::shared_ptr<PartitionInfo>> partitions_info_;
 };
 
 class FetchResponse: public Response {

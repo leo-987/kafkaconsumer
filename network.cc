@@ -193,7 +193,7 @@ int Network::Receive(int fd, Response **res)
 			}
 			catch (...)
 			{
-
+				return -1;
 			}
 			break;
 		}
@@ -687,8 +687,8 @@ int Network::SyncGroup(Event &event)
 	if (ReceiveResponseHandler(coordinator_, &response) <= 0)
 	{
 		// next state
-		current_state_ = &Network::JoinGroup;
-		event = Event::JOIN_WITH_EMPTY_CONSUMER_ID;
+		current_state_ = &Network::Initial;
+		event = Event::REFRESH_METADATA;
 
 		delete sync_request;
 		return -1;
