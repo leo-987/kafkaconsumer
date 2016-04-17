@@ -52,7 +52,6 @@ Network::Network(KafkaClient *client, const std::string &broker_list, const std:
 		if (fd < 0)
 			continue;
 		Broker broker(fd, tmp_broker_id, ip, port);
-		//seed_brokers_.push_back(broker);
 		alive_brokers_.insert({tmp_broker_id, broker});
 		tmp_broker_id--;
 	}
@@ -69,11 +68,16 @@ Network::~Network()
 	for (auto it = alive_brokers_.begin(); it != alive_brokers_.end(); ++it)
 	{
 		close(it->second.fd_);
-		//delete it->second;
 	}
 	//pthread_mutex_destroy(&queue_mutex_);
 }
 
+/*
+ * ===  FUNCTION  ======================================================================
+ *         Name: Start
+ *  Description: Start a state machine
+ * =====================================================================================
+ */
 int Network::Start()
 {
 	while (1)
@@ -145,7 +149,7 @@ int Network::SendRequestHandler(Broker *broker, Request *request)
 	return ret;
 }
 
-/* 
+/*
  * ===  FUNCTION  ======================================================================
  *         Name: Receive
  *  Description: Receive a response from fd to res
@@ -329,7 +333,6 @@ int Network::PartitionAssignment()
 	}
 	return 0;
 }
-
 
 /* 
  * ===  FUNCTION  ======================================================================

@@ -71,8 +71,6 @@ private:
 	std::string topic_;
 	std::string group_;
 
-	std::vector<Broker> seed_brokers_;
-
 	// broker id -> Broker 
 	std::unordered_map<int, Broker> alive_brokers_;
 
