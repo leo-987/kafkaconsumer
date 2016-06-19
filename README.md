@@ -1,3 +1,9 @@
 # kafkaclient
-Client for Kafka.<br />
-This project is under way...
+Consumer for Kafka.<br />
+
+# Usage
+```
+Edit main.cc and set brokers ip, topic, group.
+make
+./main
+```

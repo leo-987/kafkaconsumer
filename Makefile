@@ -21,7 +21,7 @@ SOURCES = main.cc kafka_client.cc network.cc\
 OBJECTS = $(SOURCES:.cc=.o)
 
 all: depend $(TARGET)
-	./$(TARGET)
+	#./$(TARGET)
 
 depend: .depend
 .depend: $(SOURCES)

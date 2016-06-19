@@ -5,8 +5,7 @@
 int main()
 {
 	{
-		std::string brokers = "w-w1901.add.nbt.qihoo.net:9092,\
-							   w-w1902.add.nbt.qihoo.net:9092,w-w1903.add.nbt.qihoo.net:9092";
+		std::string brokers = "10.123.81.11:9092,10.123.81.12:9092,10.123.81.13:9092";
 		std::string topic = "test";
 		std::string group = "group";
 		KafkaClient client(brokers, topic, group);
